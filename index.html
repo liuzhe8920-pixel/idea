@@ -1,0 +1,1514 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>家庭健康档案</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --teal:#1a9e78;--teal-d:#0d6b52;--teal-l:#e0f5ee;
+  --blue:#1a6abf;--blue-l:#e0eeff;
+  --amber:#b87010;--amber-l:#faebd0;
+  --coral:#c8401e;--coral-l:#fce8e2;
+  --purple:#6040b0;--purple-l:#ede8fa;
+  --olive:#4a7a18;--olive-l:#e8f5d8;
+  --ink:#1c1c1a;--ink2:#52524e;--ink3:#94948e;
+  --bg:#f5f3ee;--bg2:#ece9e2;--bg3:#e2ddd4;
+  --white:#ffffff;--border:#d8d4cc;--border2:#c8c4ba;
+  --radius:8px;--radius-lg:12px;--radius-xl:16px;
+}
+body{font-family:'PingFang SC','Microsoft YaHei',sans-serif;background:var(--bg);color:var(--ink);font-size:14px;line-height:1.5}
+button,input,select,textarea{font-family:inherit;font-size:14px}
+button{cursor:pointer}
+::-webkit-scrollbar{width:4px}::-webkit-scrollbar-thumb{background:var(--border2);border-radius:2px}
+
+/* ─── SCREENS ─────────────────────────────────────────────── */
+.screen{display:none;position:fixed;inset:0;background:var(--bg);z-index:100;align-items:center;justify-content:center}
+.screen.active{display:flex}
+.overlay-screen{background:rgba(0,0,0,.5);z-index:200}
+
+/* ─── LOGIN ────────────────────────────────────────────────── */
+.login-card{background:var(--white);border-radius:var(--radius-xl);border:1px solid var(--border);padding:36px 32px;width:380px}
+.login-logo{text-align:center;font-size:36px;margin-bottom:8px}
+.login-title{text-align:center;font-size:20px;font-weight:700;margin-bottom:4px}
+.login-sub{text-align:center;font-size:12px;color:var(--ink3);margin-bottom:24px}
+.tab-row{display:flex;background:var(--bg);border-radius:var(--radius);padding:3px;margin-bottom:20px}
+.tab-btn{flex:1;padding:8px;border:none;border-radius:6px;background:transparent;font-weight:500;color:var(--ink3);transition:all .15s}
+.tab-btn.active{background:var(--white);color:var(--ink);box-shadow:0 1px 3px rgba(0,0,0,.1)}
+.fg{display:flex;flex-direction:column;gap:5px;margin-bottom:14px}
+.fg label{font-size:12px;color:var(--ink2);font-weight:500}
+.fg input{padding:10px 12px;border:1px solid var(--border);border-radius:var(--radius);transition:border-color .15s}
+.fg input:focus{outline:none;border-color:var(--teal)}
+.btn-main{width:100%;padding:11px;background:var(--teal);color:#fff;border:none;border-radius:var(--radius);font-weight:700;font-size:14px;transition:background .15s;margin-top:4px}
+.btn-main:hover{background:var(--teal-d)}
+.btn-main:disabled{background:var(--border);cursor:not-allowed}
+.err-msg{font-size:12px;color:var(--coral);min-height:16px;margin-top:6px;text-align:center}
+.ok-msg{font-size:12px;color:var(--teal);min-height:16px;margin-top:6px;text-align:center}
+.login-footer{text-align:center;margin-top:16px}
+.link-btn{background:none;border:none;color:var(--teal);font-size:12px;text-decoration:underline}
+
+/* ─── CONFIG ───────────────────────────────────────────────── */
+.config-card{background:var(--white);border-radius:var(--radius-xl);border:1px solid var(--border);padding:28px 28px;width:500px;max-height:88vh;overflow-y:auto}
+.config-title{font-size:16px;font-weight:700;margin-bottom:6px}
+.config-sub{font-size:13px;color:var(--ink2);margin-bottom:20px;line-height:1.6}
+.steps{display:flex;flex-direction:column;gap:10px;margin-bottom:18px}
+.step{display:flex;gap:10px;align-items:flex-start}
+.step-n{width:22px;height:22px;border-radius:50%;background:var(--teal);color:#fff;font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:1px}
+.step-t{font-size:13px;color:var(--ink2);line-height:1.6;flex:1}
+.step-t a{color:var(--teal)}
+.sql-box{background:var(--bg);border-radius:var(--radius);padding:10px 12px;font-size:11px;font-family:monospace;color:var(--ink2);line-height:1.6;margin-bottom:16px;position:relative}
+.copy-btn{position:absolute;top:8px;right:8px;background:var(--teal);color:#fff;border:none;border-radius:5px;padding:3px 10px;font-size:11px;cursor:pointer}
+.copy-btn:hover{background:var(--teal-d)}
+.cfg-row{display:flex;gap:10px;margin-top:4px}
+.btn-sec{flex:1;padding:10px;background:var(--bg);border:1px solid var(--border);border-radius:var(--radius);font-weight:500;color:var(--ink)}
+.btn-sec:hover{background:var(--bg2)}
+
+/* ─── APP LAYOUT ───────────────────────────────────────────── */
+#app{display:none;height:100vh;overflow:hidden;flex-direction:row}
+#app.active{display:flex}
+.sidebar{width:220px;min-width:220px;background:var(--ink);display:flex;flex-direction:column;overflow-y:auto}
+.sb-top{padding:18px 16px 14px;border-bottom:1px solid rgba(255,255,255,.08)}
+.sb-icon{width:36px;height:36px;background:var(--teal);border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:18px;margin-bottom:8px}
+.sb-title{font-size:14px;font-weight:700;color:#fff}
+.sb-sync{font-size:11px;margin-top:3px;display:flex;align-items:center;gap:5px}
+.sync-dot{width:6px;height:6px;border-radius:50%;background:var(--border2);flex-shrink:0}
+.sync-dot.ok{background:#4cbb7a}
+.sync-dot.busy{background:#f0a040;animation:pulse .8s infinite}
+.sync-dot.err{background:var(--coral)}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
+.sb-sect{padding:12px 10px 4px}
+.sb-lbl{font-size:10px;color:rgba(255,255,255,.3);letter-spacing:1px;padding:0 6px;margin-bottom:6px}
+.sb-btn{width:100%;display:flex;align-items:center;gap:9px;padding:8px 8px;border:none;border-radius:var(--radius);background:transparent;font-size:13px;color:rgba(255,255,255,.55);text-align:left;transition:all .15s}
+.sb-btn:hover{background:rgba(255,255,255,.07);color:rgba(255,255,255,.9)}
+.sb-btn.active{background:rgba(255,255,255,.12);color:#fff;font-weight:600}
+.sb-av{width:27px;height:27px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;flex-shrink:0}
+.sb-rel{margin-left:auto;font-size:10px;opacity:.4}
+.sb-div{height:1px;background:rgba(255,255,255,.07);margin:8px 12px}
+.sb-nav{margin-top:auto;padding:10px}
+.sb-nav .sb-btn.active{background:var(--teal);color:#fff}
+.sb-bottom{padding:10px 12px;border-top:1px solid rgba(255,255,255,.07)}
+.sb-user{font-size:11px;color:rgba(255,255,255,.3);padding:4px 6px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-bottom:2px}
+
+/* ─── MAIN ─────────────────────────────────────────────────── */
+.main{flex:1;display:flex;flex-direction:column;overflow:hidden;min-width:0}
+.topbar{padding:14px 24px;background:var(--white);border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;flex-shrink:0}
+.topbar-l h2{font-size:17px;font-weight:700}
+.topbar-l p{font-size:12px;color:var(--ink3);margin-top:2px}
+.content{flex:1;overflow-y:auto;padding:20px 24px}
+
+/* ─── BUTTONS ──────────────────────────────────────────────── */
+.btn-teal{display:flex;align-items:center;gap:6px;padding:8px 16px;background:var(--teal);color:#fff;border:none;border-radius:var(--radius);font-weight:600;font-size:13px;transition:background .15s}
+.btn-teal:hover{background:var(--teal-d)}
+.btn-ghost{padding:8px 14px;background:transparent;border:1px solid var(--border);border-radius:var(--radius);font-size:13px;color:var(--ink);transition:all .15s}
+.btn-ghost:hover{background:var(--bg)}
+.btn-danger{padding:8px 14px;background:transparent;border:1px solid var(--coral-l);border-radius:var(--radius);font-size:12px;color:var(--coral)}
+.btn-danger:hover{background:var(--coral-l)}
+
+/* ─── KPI CARDS ────────────────────────────────────────────── */
+.kpi-row{display:grid;grid-template-columns:repeat(5,1fr);gap:10px;margin-bottom:20px}
+.kpi{background:var(--white);border:1px solid var(--border);border-radius:var(--radius-lg);padding:13px 15px;border-top:3px solid var(--border)}
+.kpi-lbl{font-size:11px;color:var(--ink3);margin-bottom:4px}
+.kpi-val{font-size:22px;font-weight:700;letter-spacing:-.5px}
+.kpi-hint{font-size:11px;color:var(--ink3);margin-top:2px}
+
+/* ─── FILTER ───────────────────────────────────────────────── */
+.filter-bar{display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap}
+.filter-bar input{flex:1;min-width:160px;padding:8px 12px 8px 32px;border:1px solid var(--border);border-radius:var(--radius);background:var(--white) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%2394948e' stroke-width='2'%3E%3Ccircle cx='11' cy='11' r='8'/%3E%3Cpath d='m21 21-4.35-4.35'/%3E%3C/svg%3E") no-repeat 10px center}
+.filter-bar input:focus{outline:none;border-color:var(--teal)}
+.filter-bar select{padding:8px 10px;border:1px solid var(--border);border-radius:var(--radius);background:var(--white);color:var(--ink)}
+.filter-bar select:focus{outline:none;border-color:var(--teal)}
+
+/* ─── RECORD CARDS ─────────────────────────────────────────── */
+.rlist{display:flex;flex-direction:column;gap:8px}
+.rcard{background:var(--white);border:1px solid var(--border);border-radius:var(--radius-lg);cursor:pointer;transition:border-color .15s,box-shadow .15s;overflow:hidden}
+.rcard:hover{border-color:var(--border2);box-shadow:0 2px 8px rgba(0,0,0,.06)}
+.rcard.open{border-color:var(--teal)}
+.rcard-top{display:flex;align-items:flex-start;gap:12px;padding:13px 16px}
+.type-tag{padding:3px 9px;border-radius:20px;font-size:11px;font-weight:700;flex-shrink:0;margin-top:2px}
+.rcard-mid{flex:1;min-width:0}
+.rcard-hosp{font-size:15px;font-weight:700}
+.rcard-sub{font-size:12px;color:var(--ink2);margin-top:3px;display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.member-chip{display:inline-flex;align-items:center;gap:4px}
+.rcard-right{display:flex;flex-direction:column;align-items:flex-end;gap:3px;flex-shrink:0}
+.rcard-cost{font-size:15px;font-weight:700}
+.rcard-self{font-size:11px;color:var(--coral)}
+.rcard-date{font-size:11px;color:var(--ink3)}
+.att-pills{display:flex;gap:3px;flex-wrap:wrap;justify-content:flex-end;margin-top:2px}
+.att-pill{font-size:10px;padding:2px 6px;border-radius:4px;font-weight:600}
+
+/* ─── DETAIL PANEL ─────────────────────────────────────────── */
+.rdetail{display:none;border-top:1px solid var(--border);padding:14px 16px;background:var(--bg)}
+.rcard.open .rdetail{display:block}
+.det-sec{margin-bottom:14px}
+.det-sec-title{font-size:10px;color:var(--ink3);letter-spacing:.8px;text-transform:uppercase;margin-bottom:8px;display:flex;align-items:center;gap:6px}
+.det-sec-title::after{content:'';flex:1;height:1px;background:var(--border)}
+.det-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.di-lbl{font-size:11px;color:var(--ink3);margin-bottom:2px}
+.di-val{font-size:13px;font-weight:600}
+.ins-boxes{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:8px}
+.ins-box{border-radius:var(--radius);padding:9px 11px;border:1px solid var(--border)}
+.ins-box-lbl{font-size:10px;color:var(--ink2);margin-bottom:3px}
+.ins-box-val{font-size:17px;font-weight:700}
+.ins-box-pct{font-size:10px;color:var(--ink3);margin-top:1px}
+.cost-bar{height:7px;border-radius:4px;background:var(--bg3);display:flex;gap:2px;overflow:hidden;margin-top:6px}
+.cost-seg{height:100%;transition:width .5s}
+.result-box{background:var(--white);border:1px solid var(--border);border-radius:var(--radius);padding:10px 12px;font-size:13px;line-height:1.8;white-space:pre-wrap}
+
+/* ─── ATTACHMENT CATS ──────────────────────────────────────── */
+.att-cats{display:grid;grid-template-columns:repeat(5,1fr);gap:7px}
+.att-cat{border:1px solid var(--border);border-radius:var(--radius);overflow:hidden}
+.att-cat-hd{padding:7px 9px;font-size:11px;font-weight:700;border-bottom:1px solid rgba(0,0,0,.06)}
+.att-cat-body{padding:6px 7px;min-height:40px;display:flex;flex-direction:column;gap:3px}
+.att-file{display:flex;align-items:center;gap:4px;padding:3px 5px;border-radius:5px;font-size:10px;transition:background .1s;cursor:pointer}
+.att-file:hover{background:rgba(0,0,0,.04)}
+.att-fn{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--ink2)}
+.att-fn:hover{color:var(--teal);text-decoration:underline}
+.att-actions{opacity:0;display:flex;gap:2px}
+.att-file:hover .att-actions{opacity:1}
+.att-act{background:none;border:none;font-size:13px;padding:0 1px;line-height:1;color:var(--ink3)}
+.att-act.del{color:var(--coral)}
+.att-empty{font-size:10px;color:var(--ink3);padding:2px 4px}
+.att-uploading{font-size:10px;color:var(--teal);padding:3px 5px;display:flex;align-items:center;gap:4px}
+.att-upload-lbl{display:flex;align-items:center;justify-content:center;gap:3px;margin-top:3px;padding:4px;border:1px dashed var(--border2);border-radius:5px;font-size:10px;color:var(--ink3);cursor:pointer;transition:all .12s}
+.att-upload-lbl:hover{border-color:var(--teal);color:var(--teal);background:var(--teal-l)}
+
+/* ─── MODAL ────────────────────────────────────────────────── */
+.modal-wrap{position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:300;display:none;align-items:center;justify-content:center}
+.modal-wrap.open{display:flex}
+.modal{background:var(--white);border-radius:var(--radius-xl);width:560px;max-height:90vh;overflow-y:auto;box-shadow:0 16px 48px rgba(0,0,0,.18)}
+.modal-hd{padding:18px 22px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;background:var(--white);border-radius:var(--radius-xl) var(--radius-xl) 0 0;z-index:1}
+.modal-hd h3{font-size:15px;font-weight:700}
+.modal-x{background:var(--bg);border:none;width:28px;height:28px;border-radius:6px;font-size:16px;color:var(--ink2);display:flex;align-items:center;justify-content:center}
+.modal-body{padding:18px 22px;display:flex;flex-direction:column;gap:14px}
+.msect-title{font-size:11px;font-weight:700;color:var(--ink2);letter-spacing:.6px;text-transform:uppercase;padding-bottom:5px;border-bottom:1px solid var(--border)}
+.mform-row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.mform-row3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px}
+.mfg{display:flex;flex-direction:column;gap:4px}
+.mfg label{font-size:11px;color:var(--ink2);font-weight:500}
+.mfg input,.mfg select,.mfg textarea{padding:8px 11px;border:1px solid var(--border);border-radius:var(--radius);transition:border-color .15s}
+.mfg input:focus,.mfg select:focus,.mfg textarea:focus{outline:none;border-color:var(--teal)}
+.mfg textarea{resize:vertical;min-height:72px;line-height:1.7}
+.mfg .mhint{font-size:11px;color:var(--ink3);margin-top:2px}
+/* modal att zones */
+.matt-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:7px}
+.matt-zone{border:1px solid var(--border);border-radius:var(--radius);overflow:hidden}
+.matt-hd{padding:7px 9px;font-size:10px;font-weight:700;border-bottom:1px solid rgba(0,0,0,.06)}
+.matt-body{padding:6px 7px;display:flex;flex-direction:column;gap:3px;min-height:46px}
+.matt-file{display:flex;align-items:center;gap:4px;padding:3px 5px;border-radius:5px;background:var(--bg);font-size:10px}
+.matt-fn{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--ink2)}
+.matt-status{font-size:9px;color:var(--teal);flex-shrink:0}
+.matt-del{background:none;border:none;color:var(--coral);font-size:12px;padding:0;cursor:pointer;flex-shrink:0}
+.matt-upload{display:flex;align-items:center;justify-content:center;gap:3px;width:100%;padding:5px;border:1px dashed var(--border2);border-radius:5px;background:transparent;font-size:10px;color:var(--ink3);cursor:pointer;transition:all .12s;margin-top:2px}
+.matt-upload:hover{border-color:var(--teal);color:var(--teal);background:var(--teal-l)}
+.modal-ft{padding:14px 22px;border-top:1px solid var(--border);display:flex;justify-content:flex-end;gap:8px;position:sticky;bottom:0;background:var(--white);border-radius:0 0 var(--radius-xl) var(--radius-xl)}
+
+/* ─── HOSPITAL AUTOCOMPLETE ────────────────────────────────── */
+.hosp-wrap{position:relative}
+.hosp-wrap input{width:100%}
+.hosp-drop{position:absolute;top:calc(100% + 4px);left:0;right:0;background:var(--white);border:1px solid var(--border);border-radius:var(--radius-lg);box-shadow:0 8px 24px rgba(0,0,0,.12);z-index:1000;max-height:260px;overflow-y:auto;display:none}
+.hosp-drop.show{display:block}
+.hosp-item{display:flex;align-items:flex-start;gap:10px;padding:9px 13px;cursor:pointer;border-bottom:1px solid var(--border);font-size:13px}
+.hosp-item:last-child{border-bottom:none}
+.hosp-item:hover,.hosp-item.focused{background:var(--teal-l)}
+.hosp-name{font-weight:600;color:var(--ink)}
+.hosp-name em{color:var(--teal);font-style:normal}
+.hosp-addr{font-size:11px;color:var(--ink3);margin-top:2px}
+.hosp-dist{font-size:10px;color:var(--ink3);flex-shrink:0;margin-top:2px}
+.hosp-loading,.hosp-empty{padding:14px;text-align:center;font-size:13px;color:var(--ink3)}
+.city-chips{display:flex;gap:5px;flex-wrap:wrap;margin-top:5px}
+.city-chip{padding:3px 10px;border:1px solid var(--border);border-radius:20px;font-size:11px;background:var(--white);color:var(--ink2);cursor:pointer;transition:all .12s}
+.city-chip:hover{border-color:var(--teal);color:var(--teal)}
+.city-chip.sel{background:var(--teal);color:#fff;border-color:var(--teal)}
+
+/* ─── PREVIEW MODAL ────────────────────────────────────────── */
+.preview-wrap{position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:500;display:none;align-items:center;justify-content:center;padding:20px}
+.preview-wrap.open{display:flex}
+.preview-box{background:var(--white);border-radius:var(--radius-lg);max-width:860px;width:100%;max-height:90vh;display:flex;flex-direction:column;overflow:hidden}
+.preview-hd{padding:13px 17px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;flex-shrink:0}
+.preview-hd-name{font-size:14px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;margin-right:12px}
+.preview-hd-acts{display:flex;gap:8px;flex-shrink:0}
+.preview-body{flex:1;overflow:auto;background:var(--bg);display:flex;align-items:center;justify-content:center;padding:16px}
+.preview-body img{max-width:100%;max-height:70vh;border-radius:var(--radius);box-shadow:0 4px 20px rgba(0,0,0,.15)}
+.preview-body iframe{width:100%;height:65vh;border:none;border-radius:var(--radius)}
+.preview-nopreview{text-align:center;color:var(--ink3);padding:40px}
+
+/* ─── STATS ────────────────────────────────────────────────── */
+.chart-card{background:var(--white);border:1px solid var(--border);border-radius:var(--radius-lg);padding:15px 17px;margin-bottom:12px}
+.chart-title{font-size:11px;font-weight:700;color:var(--ink2);letter-spacing:.6px;text-transform:uppercase;margin-bottom:12px}
+.bar-row{display:flex;align-items:center;gap:9px;margin-bottom:7px;font-size:12px}
+.bar-lbl{width:76px;color:var(--ink2);text-align:right;flex-shrink:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:11px}
+.bar-track{flex:1;height:15px;background:var(--bg2);border-radius:3px;overflow:hidden}
+.bar-fill{height:100%;border-radius:3px;transition:width .6s cubic-bezier(.4,0,.2,1)}
+.bar-val{width:70px;text-align:right;font-size:11px;color:var(--ink);flex-shrink:0}
+.stats-2col{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+
+/* ─── INSURANCE PAGE ───────────────────────────────────────── */
+.ins-summary{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:14px}
+.ins-sum{background:var(--white);border:1px solid var(--border);border-radius:var(--radius-lg);padding:14px 16px;text-align:center}
+.ins-sum-lbl{font-size:11px;color:var(--ink3);margin-bottom:5px}
+.ins-sum-val{font-size:22px;font-weight:700}
+.ins-sum-pct{font-size:11px;color:var(--ink3);margin-top:3px}
+
+/* ─── EMPTY / TOAST ────────────────────────────────────────── */
+.empty{text-align:center;padding:60px 20px;color:var(--ink3)}
+.empty-icon{font-size:40px;margin-bottom:12px}
+.empty-title{font-size:15px;font-weight:700;color:var(--ink2);margin-bottom:5px}
+.empty-sub{font-size:13px;line-height:1.6}
+#toast{position:fixed;bottom:24px;right:24px;background:var(--ink);color:#fff;padding:10px 16px;border-radius:var(--radius);font-size:13px;z-index:9999;opacity:0;transform:translateY(8px);transition:all .25s;pointer-events:none}
+#toast.show{opacity:1;transform:none}
+
+/* ─── MISC ─────────────────────────────────────────────────── */
+.tbl{width:100%;border-collapse:collapse;font-size:12px}
+.tbl th{padding:8px 10px;text-align:left;color:var(--ink2);font-weight:600;border-bottom:2px solid var(--border)}
+.tbl td{padding:8px 10px;border-bottom:1px solid var(--border)}
+.tbl tr:nth-child(even){background:var(--bg)}
+
+/* ══ MOBILE RESPONSIVE ══════════════════════════════════════ */
+@media(max-width:680px){
+  .sidebar{display:none}
+  #app{flex-direction:column}
+  .main{flex:1;overflow:hidden}
+  .topbar{padding:10px 14px}
+  .topbar-l h2{font-size:15px}
+  .content{padding:12px 14px}
+  .kpi-row{grid-template-columns:repeat(2,1fr);gap:8px;margin-bottom:14px}
+  .kpi-val{font-size:18px}
+  .stats-2col{grid-template-columns:1fr}
+  .ins-summary{grid-template-columns:1fr}
+  .ins-boxes{grid-template-columns:repeat(2,1fr)}
+  .det-grid{grid-template-columns:1fr 1fr}
+  .att-cats{grid-template-columns:repeat(2,1fr)}
+  .att-cats .att-cat:last-child{grid-column:1/-1}
+  .modal{width:100%;max-height:95vh;border-radius:var(--radius-xl) var(--radius-xl) 0 0;position:fixed;bottom:0;left:0;right:0}
+  .modal-wrap{align-items:flex-end}
+  .mform-row,.mform-row3{grid-template-columns:1fr}
+  .matt-grid{grid-template-columns:repeat(2,1fr)}
+  .filter-bar{gap:6px}
+  .filter-bar input{font-size:16px}/* prevent iOS zoom */
+  .fg input,.fg select,.mfg input,.mfg select,.mfg textarea{font-size:16px}/* prevent iOS zoom */
+  .rcard-top{gap:8px;padding:11px 12px}
+  .rcard-hosp{font-size:14px}
+  .rdetail{padding:12px}
+  .config-card,.login-card{width:calc(100vw - 32px);padding:24px 20px}
+  .config-card{max-height:92vh}
+
+  /* bottom nav bar */
+  .mobile-nav{display:flex}
+}
+@media(min-width:681px){.mobile-nav{display:none}}
+
+.mobile-nav{
+  position:fixed;bottom:0;left:0;right:0;
+  background:var(--ink);border-top:1px solid rgba(255,255,255,.08);
+  z-index:50;height:56px;align-items:stretch;
+}
+.mobile-nav-btn{
+  flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;
+  gap:2px;border:none;background:transparent;color:rgba(255,255,255,.45);font-size:10px;
+  transition:color .15s;padding:0;
+}
+.mobile-nav-btn .nav-ic{font-size:20px;line-height:1}
+.mobile-nav-btn.active{color:#fff}
+.mobile-nav-btn.active .nav-ic{filter:drop-shadow(0 0 4px rgba(26,158,120,.8))}
+
+/* bottom safe area padding on iOS */
+@supports(padding-bottom:env(safe-area-inset-bottom)){
+  .mobile-nav{padding-bottom:env(safe-area-inset-bottom);height:calc(56px + env(safe-area-inset-bottom))}
+  @media(max-width:680px){.content{padding-bottom:calc(70px + env(safe-area-inset-bottom))}}
+}
+
+/* ══ OCR SCAN BUTTON & PANEL ════════════════════════════════ */
+.scan-fab{
+  position:fixed;bottom:72px;right:18px;
+  width:52px;height:52px;border-radius:50%;
+  background:var(--teal);border:none;color:#fff;font-size:22px;
+  box-shadow:0 4px 16px rgba(26,158,120,.4);
+  display:none;align-items:center;justify-content:center;
+  z-index:60;transition:transform .15s;
+}
+.scan-fab:hover{transform:scale(1.05)}
+@media(max-width:680px){.scan-fab{display:flex}}
+
+.ocr-sheet{
+  position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:400;
+  display:none;align-items:flex-end;justify-content:center;
+}
+.ocr-sheet.open{display:flex}
+.ocr-box{
+  background:var(--white);border-radius:var(--radius-xl) var(--radius-xl) 0 0;
+  width:100%;max-height:85vh;overflow-y:auto;padding:20px 18px 32px;
+}
+.ocr-title{font-size:16px;font-weight:700;margin-bottom:4px}
+.ocr-sub{font-size:13px;color:var(--ink3);margin-bottom:18px;line-height:1.6}
+.ocr-drop{
+  border:2px dashed var(--border2);border-radius:var(--radius-lg);
+  padding:28px 20px;text-align:center;cursor:pointer;transition:all .15s;
+  margin-bottom:14px;
+}
+.ocr-drop:hover,.ocr-drop.drag{border-color:var(--teal);background:var(--teal-l)}
+.ocr-drop-icon{font-size:36px;margin-bottom:8px}
+.ocr-drop-txt{font-size:13px;color:var(--ink2);font-weight:500}
+.ocr-drop-sub{font-size:12px;color:var(--ink3);margin-top:4px}
+.ocr-preview{max-width:100%;border-radius:var(--radius);margin-bottom:12px;display:none;box-shadow:0 2px 12px rgba(0,0,0,.1)}
+.ocr-progress{background:var(--bg2);border-radius:var(--radius);padding:14px;margin-bottom:14px;display:none}
+.ocr-prog-label{font-size:12px;color:var(--ink2);margin-bottom:6px;display:flex;align-items:center;gap:6px}
+.ocr-prog-bar{height:6px;background:var(--bg3);border-radius:3px;overflow:hidden}
+.ocr-prog-fill{height:100%;background:var(--teal);border-radius:3px;transition:width .3s;width:0}
+.ocr-result{background:var(--bg);border-radius:var(--radius-lg);padding:14px;margin-bottom:14px;display:none}
+.ocr-result-title{font-size:11px;font-weight:700;color:var(--ink2);letter-spacing:.5px;text-transform:uppercase;margin-bottom:10px}
+.ocr-field{display:flex;flex-direction:column;gap:4px;margin-bottom:10px}
+.ocr-field label{font-size:11px;color:var(--ink3);font-weight:500}
+.ocr-field input{padding:8px 10px;border:1px solid var(--border);border-radius:var(--radius);font-size:14px;background:var(--white)}
+.ocr-field input:focus{outline:none;border-color:var(--teal)}
+.ocr-actions{display:flex;gap:10px}
+.ocr-raw{font-size:11px;color:var(--ink3);background:var(--bg2);border-radius:var(--radius);padding:8px 10px;max-height:80px;overflow-y:auto;margin-bottom:12px;display:none;white-space:pre-wrap;line-height:1.6}
+</style>
+</head>
+<body>
+
+<!-- TOAST -->
+<div id="toast"></div>
+
+<!-- ═══ SCREEN: CONFIG ══════════════════════════════════════ -->
+<div id="s-config" class="screen overlay-screen">
+  <div class="config-card">
+    <div class="config-title">🔧 配置 Supabase 云数据库</div>
+    <div class="config-sub">首次使用需要配置一次，数据会安全地同步到云端，任何设备登录都能访问。</div>
+    <div class="steps">
+      <div class="step"><div class="step-n">1</div><div class="step-t">打开 <a href="https://supabase.com" target="_blank">supabase.com</a> 注册免费账号</div></div>
+      <div class="step"><div class="step-n">2</div><div class="step-t">点 New project，区域选 <strong>Northeast Asia (Tokyo)</strong>，设置密码</div></div>
+      <div class="step"><div class="step-n">3</div><div class="step-t">进入 <strong>Settings → API Keys</strong>，复制 Project URL 和 anon key</div></div>
+      <div class="step"><div class="step-n">4</div><div class="step-t">进入 <strong>SQL Editor</strong>，点下方「复制 SQL」按钮，粘贴后点 Run 运行</div></div>
+    </div>
+    <div class="sql-box">
+      <button class="copy-btn" onclick="copySQL()">复制 SQL</button>
+      create table if not exists fhr_data(id text primary key, user_id uuid references auth.users, data jsonb, updated_at timestamptz default now());<br>
+      alter table fhr_data enable row level security;<br>
+      create policy "own" on fhr_data for all using(auth.uid()=user_id);<br>
+      insert into storage.buckets(id,name,public) values('health-files','health-files',false) on conflict do nothing;<br>
+      create policy "own_files" on storage.objects for all using(bucket_id='health-files' and auth.uid()::text=split_part(name,'/',1));
+    </div>
+    <div class="fg"><label>Project URL</label><input id="cfg-url" placeholder="https://xxxxxxxxxxxx.supabase.co" autocomplete="off"></div>
+    <div class="fg"><label>Anon Key</label><input id="cfg-key" placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..." autocomplete="off"></div>
+    <div id="cfg-err" class="err-msg"></div>
+    <div class="cfg-row">
+      <button class="btn-sec" onclick="closeConfig()">取消</button>
+      <button class="btn-main" style="flex:2" onclick="doSaveConfig()">保存并连接</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ SCREEN: LOGIN ════════════════════════════════════════ -->
+<div id="s-login" class="screen active">
+  <div class="login-card">
+    <div class="login-logo">🏥</div>
+    <div class="login-title">家庭健康档案</div>
+    <div class="login-sub">云端同步 · 多设备访问 · 安全存储</div>
+    <div class="tab-row">
+      <button class="tab-btn active" id="lt-in" onclick="setTab('in')">登录</button>
+      <button class="tab-btn" id="lt-up" onclick="setTab('up')">注册</button>
+    </div>
+    <div class="fg"><label>邮箱</label><input type="email" id="l-email" placeholder="your@email.com" autocomplete="email"></div>
+    <div class="fg"><label>密码</label><input type="password" id="l-pass" placeholder="至少 6 位密码" onkeydown="if(event.key==='Enter')doAuth()"></div>
+    <div id="l-err" class="err-msg"></div>
+    <div id="l-ok" class="ok-msg"></div>
+    <button class="btn-main" id="l-btn" onclick="doAuth()">登录</button>
+    <div class="login-footer">
+      <button class="link-btn" onclick="showConfig()">⚙️ 配置 Supabase（首次必须）</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ APP ══════════════════════════════════════════════════ -->
+<div id="app">
+  <div class="sidebar">
+    <div class="sb-top">
+      <div class="sb-icon">🏥</div>
+      <div class="sb-title">家庭健康档案</div>
+      <div class="sb-sync"><div class="sync-dot" id="sync-dot"></div><span id="sync-txt" style="font-size:11px;color:rgba(255,255,255,.35)">未连接</span></div>
+    </div>
+    <div class="sb-sect">
+      <div class="sb-lbl">家庭成员</div>
+      <div id="member-list"></div>
+      <button class="sb-btn" style="font-size:12px;color:rgba(255,255,255,.3)" onclick="addMember()">＋ 添加成员</button>
+    </div>
+    <div class="sb-div"></div>
+    <div class="sb-sect" style="flex:1">
+      <div class="sb-lbl">功能</div>
+      <button class="sb-btn active" id="nav-records" onclick="go('records')">📋 就诊记录</button>
+      <button class="sb-btn" id="nav-insurance" onclick="go('insurance')">🛡 保险报销</button>
+      <button class="sb-btn" id="nav-stats" onclick="go('stats')">📊 统计分析</button>
+    </div>
+    <div class="sb-bottom">
+      <div class="sb-user" id="user-email"></div>
+      <button class="sb-btn" style="font-size:12px;color:rgba(255,255,255,.3)" onclick="doExport()">⬇ 导出备份</button>
+      <button class="sb-btn" style="font-size:12px;color:rgba(255,255,255,.3)" onclick="document.getElementById('imp-inp').click()">⬆ 导入恢复</button>
+      <input type="file" id="imp-inp" accept=".json" style="display:none" onchange="doImport(event)">
+      <button class="sb-btn" style="font-size:12px;color:var(--coral);margin-top:4px" onclick="doLogout()">⬠ 退出登录</button>
+    </div>
+  </div>
+  <div class="main">
+    <div class="topbar">
+      <div class="topbar-l"><h2 id="pg-title">全部记录</h2><p id="pg-sub">家庭就诊历史</p></div>
+      <div id="topbar-actions"></div>
+    </div>
+    <div class="content" id="content"></div>
+  </div>
+</div>
+
+
+<!-- MOBILE BOTTOM NAV -->
+<nav class="mobile-nav" id="mobile-nav">
+  <button class="mobile-nav-btn active" id="mnav-records" onclick="go('records');setMnav('records')">
+    <span class="nav-ic">📋</span><span>记录</span>
+  </button>
+  <button class="mobile-nav-btn" id="mnav-insurance" onclick="go('insurance');setMnav('insurance')">
+    <span class="nav-ic">🛡</span><span>报销</span>
+  </button>
+  <button class="mobile-nav-btn" id="mnav-stats" onclick="go('stats');setMnav('stats')">
+    <span class="nav-ic">📊</span><span>统计</span>
+  </button>
+  <button class="mobile-nav-btn" id="mnav-add" onclick="openModal()">
+    <span class="nav-ic">➕</span><span>添加</span>
+  </button>
+</nav>
+
+<!-- SCAN FAB -->
+<button class="scan-fab" id="scan-fab" onclick="openOCR()" title="扫描票据自动识别">📷</button>
+
+<!-- OCR SHEET -->
+<div class="ocr-sheet" id="ocr-sheet" onclick="closeOCR()">
+  <div class="ocr-box" onclick="event.stopPropagation()">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">
+      <div class="ocr-title">📷 扫描票据自动识别</div>
+      <button onclick="closeOCR()" style="background:none;border:none;font-size:20px;color:var(--ink3);cursor:pointer">×</button>
+    </div>
+    <div class="ocr-sub">拍摄或上传收费票据，自动识别医院名称、金额、日期，填入记录表单</div>
+
+    <div class="ocr-drop" id="ocr-drop" onclick="document.getElementById('ocr-input').click()"
+      ondragover="event.preventDefault();this.classList.add('drag')"
+      ondragleave="this.classList.remove('drag')"
+      ondrop="handleOCRDrop(event)">
+      <div class="ocr-drop-icon">🧾</div>
+      <div class="ocr-drop-txt">点击拍照 / 选择图片</div>
+      <div class="ocr-drop-sub">支持 JPG、PNG、拍照截图</div>
+      <input type="file" id="ocr-input" accept="image/*" capture="environment" style="display:none" onchange="startOCR(event)">
+    </div>
+
+    <img id="ocr-preview" class="ocr-preview">
+
+    <div class="ocr-progress" id="ocr-progress">
+      <div class="ocr-prog-label"><span id="ocr-prog-txt">识别中…</span></div>
+      <div class="ocr-prog-bar"><div class="ocr-prog-fill" id="ocr-prog-fill"></div></div>
+    </div>
+
+    <div class="ocr-result" id="ocr-result">
+      <div class="ocr-result-title">✓ 识别结果（可修改后填入）</div>
+      <div class="ocr-field"><label>医院名称</label><input type="text" id="ocr-hospital" placeholder="识别结果…"></div>
+      <div class="ocr-field"><label>就诊日期</label><input type="date" id="ocr-date"></div>
+      <div class="ocr-field"><label>总金额（元）</label><input type="number" id="ocr-amount" placeholder="0"></div>
+      <div class="ocr-field"><label>科室</label><input type="text" id="ocr-dept" placeholder="识别结果…"></div>
+      <details style="margin-bottom:12px">
+        <summary style="font-size:11px;color:var(--ink3);cursor:pointer">查看原始识别文字</summary>
+        <div class="ocr-raw" id="ocr-raw" style="display:block;margin-top:6px"></div>
+      </details>
+      <div class="ocr-actions">
+        <button class="btn-ghost" style="flex:1" onclick="closeOCR()">取消</button>
+        <button class="btn-teal" style="flex:2" onclick="applyOCR()">✓ 填入记录表单</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ RECORD MODAL ═════════════════════════════════════════ -->
+<div class="modal-wrap" id="rec-modal">
+  <div class="modal" onclick="event.stopPropagation()">
+    <div class="modal-hd"><h3 id="modal-title">新增就诊记录</h3><button class="modal-x" onclick="closeModal()">×</button></div>
+    <div class="modal-body" id="modal-body"></div>
+    <div class="modal-ft">
+      <button class="btn-ghost" onclick="closeModal()">取消</button>
+      <button class="btn-teal" onclick="saveRec()">✓ 保存</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ PREVIEW MODAL ════════════════════════════════════════ -->
+<div class="preview-wrap" id="prev-wrap" onclick="closePrev()">
+  <div class="preview-box" onclick="event.stopPropagation()">
+    <div class="preview-hd">
+      <div class="preview-hd-name" id="prev-name"></div>
+      <div class="preview-hd-acts">
+        <a id="prev-dl" class="btn-ghost" style="text-decoration:none;font-size:12px" download>⬇ 下载</a>
+        <button class="btn-ghost" style="font-size:12px" onclick="closePrev()">✕ 关闭</button>
+      </div>
+    </div>
+    <div class="preview-body" id="prev-body"></div>
+  </div>
+</div>
+
+<script>
+// ╔══════════════════════════════════════════════════════════╗
+// ║  CONSTANTS                                               ║
+// ╚══════════════════════════════════════════════════════════╝
+const STORE = 'fhr_v4';
+const BUCKET = 'health-files';
+const AMAP_KEY = '89fd4b4d098da77975462d517cd8a1c6';
+const AVATAR_COLS = [['#0d5c45','#d4f0e6'],['#0c3d7a','#d4e6f8'],['#8b3010','#f8ddd6'],['#7a4e08','#faecd4'],['#5a2a80','#ead6f8'],['#3a5a10','#dff0c8']];
+const TYPE_COLS = {'门诊':['#1a9e78','#e0f5ee'],'急诊':['#c8401e','#fce8e2'],'住院':['#1a6abf','#e0eeff'],'体检':['#b87010','#faebd0'],'手术':['#8b2060','#f8d4ea'],'检查':['#4a7a18','#e8f5d8'],'复诊':['#5a5a54','#e8e6e0']};
+const TYPE_LIST = ['门诊','急诊','住院','体检','手术','检查','复诊'];
+const ATT_CATS = [
+  {key:'ticket',  icon:'🧾', name:'电子票据', desc:'收费收据、发票', color:'#b87010', bg:'#faebd0'},
+  {key:'imaging', icon:'🩻', name:'影像资料', desc:'CT、B超、X光', color:'#1a6abf', bg:'#e0eeff'},
+  {key:'record',  icon:'📄', name:'病历文件', desc:'病历、诊断证明', color:'#1a9e78', bg:'#e0f5ee'},
+  {key:'bill',    icon:'📋', name:'费用清单', desc:'费用明细清单',  color:'#6040b0', bg:'#ede8fa'},
+  {key:'reimburse',icon:'💰',name:'报销清单', desc:'统筹、理赔单',  color:'#4a7a18', bg:'#e8f5d8'},
+];
+const CITIES = ['北京','上海','广州','深圳','成都','杭州','武汉','南京','西安','重庆'];
+
+// ╔══════════════════════════════════════════════════════════╗
+// ║  STATE                                                   ║
+// ╚══════════════════════════════════════════════════════════╝
+let DB = null, UID = null;
+let G = loadLocal();
+let S = {page:'records', member:'all', expanded:null, search:'', typeF:''};
+let editId = null, pendingFiles = {}, hospCity = '', hospTimer = null, hospIdx = -1;
+
+function defaultData(){
+  return {
+    members:[{id:'m1',name:'爸爸',rel:'父亲'},{id:'m2',name:'妈妈',rel:'母亲'},{id:'m3',name:'宝宝',rel:'孩子'}],
+    records:[
+      {id:'r1',mid:'m1',date:'2025-03-12',hospital:'北京协和医院',dept:'内科',purpose:'年度体检',type:'体检',costTotal:580,costYibao:0,costShangye:0,costSelf:580,result:'血压145/90略高，其余指标正常。\n建议低盐饮食，3个月后复查。',files:{ticket:['体检票据.pdf'],imaging:[],record:['体检报告.pdf'],bill:[],reimburse:[]}},
+      {id:'r2',mid:'m2',date:'2025-04-05',hospital:'北京妇产医院',dept:'产科',purpose:'产前检查',type:'门诊',costTotal:320,costYibao:128,costShangye:80,costSelf:112,result:'各项指标正常，胎儿发育良好。',files:{ticket:[],imaging:['B超.jpg'],record:['病历.pdf'],bill:[],reimburse:[]}},
+      {id:'r3',mid:'m3',date:'2025-05-20',hospital:'北京儿童医院',dept:'急诊科',purpose:'发烧急诊',type:'急诊',costTotal:180,costYibao:54,costShangye:0,costSelf:126,result:'病毒性感冒，体温38.6°C。\n退烧药+抗病毒药3天。',files:{ticket:[],imaging:[],record:['处方单.jpg'],bill:[],reimburse:[]}},
+    ]
+  };
+}
+
+function normFiles(f){
+  if(!f||Array.isArray(f)){
+    const o={};ATT_CATS.forEach(c=>o[c.key]=[]);
+    if(Array.isArray(f)) f.forEach(x=>o.record.push(typeof x==='string'?{name:x,path:x}:x));
+    return o;
+  }
+  ATT_CATS.forEach(c=>{if(!f[c.key])f[c.key]=[];else f[c.key]=f[c.key].map(x=>typeof x==='string'?{name:x,path:x}:x);});
+  return f;
+}
+
+function loadLocal(){
+  try{const s=localStorage.getItem(STORE);if(s){const d=JSON.parse(s);d.records.forEach(r=>r.files=normFiles(r.files));return d;}}catch(e){}
+  return defaultData();
+}
+function persist(){localStorage.setItem(STORE,JSON.stringify(G));}
+
+let saveTimer=null;
+async function save(){
+  persist();setSyncDot('busy');
+  clearTimeout(saveTimer);
+  saveTimer=setTimeout(async()=>{
+    if(!DB||!UID){setSyncDot('err');return;}
+    try{
+      await DB.from('fhr_data').upsert({id:UID,user_id:UID,data:G,updated_at:new Date().toISOString()});
+      setSyncDot('ok');toast('✓ 已同步到云端');
+    }catch(e){setSyncDot('err');toast('⚠️ 云端同步失败，已本地保存');}
+  },700);
+}
+
+function setSyncDot(s){
+  const d=document.getElementById('sync-dot'),t=document.getElementById('sync-txt');
+  if(!d)return;
+  d.className='sync-dot'+({ok:' ok',busy:' busy',err:' err'}[s]||'');
+  t.textContent={ok:'已同步',busy:'同步中…',err:'同步失败','':'未连接'}[s]||'';
+}
+
+// ╔══════════════════════════════════════════════════════════╗
+// ║  SUPABASE CONFIG                                         ║
+// ╚══════════════════════════════════════════════════════════╝
+function getCfg(){try{return JSON.parse(localStorage.getItem('fhr_cfg')||'null');}catch{return null;}}
+function saveCfg(u,k){localStorage.setItem('fhr_cfg',JSON.stringify({url:u,key:k}));}
+
+function initDB(){
+  const cfg=getCfg();
+  if(!cfg||!cfg.url||!cfg.key)return false;
+  try{
+    if(!window.supabase){console.error('SDK not loaded');return false;}
+    DB=window.supabase.createClient(cfg.url,cfg.key);
+    return true;
+  }catch(e){console.error(e);return false;}
+}
+
+function showConfig(){
+  const s=document.getElementById('s-config');
+  s.classList.add('active');
+  const cfg=getCfg();
+  if(cfg){
+    const u=document.getElementById('cfg-url'),k=document.getElementById('cfg-key');
+    if(u&&cfg.url)u.value=cfg.url;
+    if(k&&cfg.key)k.value=cfg.key;
+  }
+}
+function closeConfig(){
+  document.getElementById('s-config').classList.remove('active');
+  document.getElementById('cfg-err').textContent='';
+}
+
+function doSaveConfig(){
+  const url=document.getElementById('cfg-url').value.trim();
+  const key=document.getElementById('cfg-key').value.trim();
+  const err=document.getElementById('cfg-err');
+  if(!url||!key){err.textContent='请填写完整的 URL 和 Key';return;}
+  if(!url.includes('supabase')){err.textContent='URL 格式不正确，应包含 supabase.co';return;}
+  if(!window.supabase){err.textContent='Supabase SDK 未加载，请检查网络后刷新页面';return;}
+  saveCfg(url,key);
+  if(initDB()){
+    closeConfig();
+    toast('✓ 配置成功，请登录或注册');
+    document.getElementById('l-err').textContent='';
+  }else{
+    err.textContent='连接失败，请检查 URL 和 Key 是否正确';
+  }
+}
+
+function copySQL(){
+  const sql=`create table if not exists fhr_data(id text primary key,user_id uuid references auth.users,data jsonb,updated_at timestamptz default now());
+alter table fhr_data enable row level security;
+create policy "own" on fhr_data for all using(auth.uid()=user_id);
+insert into storage.buckets(id,name,public) values('health-files','health-files',false) on conflict do nothing;
+create policy "own_files" on storage.objects for all using(bucket_id='health-files' and auth.uid()::text=split_part(name,'/',1));`;
+  navigator.clipboard.writeText(sql).then(()=>toast('SQL 已复制，粘贴到 Supabase SQL Editor 运行')).catch(()=>{
+    const ta=document.createElement('textarea');ta.value=sql;document.body.appendChild(ta);ta.select();document.execCommand('copy');ta.remove();toast('SQL 已复制');
+  });
+}
+
+// ╔══════════════════════════════════════════════════════════╗
+// ║  AUTH                                                    ║
+// ╚══════════════════════════════════════════════════════════╝
+let authMode='in';
+function setTab(m){
+  authMode=m;
+  document.getElementById('lt-in').classList.toggle('active',m==='in');
+  document.getElementById('lt-up').classList.toggle('active',m==='up');
+  document.getElementById('l-btn').textContent=m==='in'?'登录':'注册';
+  document.getElementById('l-err').textContent='';
+  document.getElementById('l-ok').textContent='';
+}
+
+async function doAuth(){
+  const email=document.getElementById('l-email').value.trim();
+  const pass=document.getElementById('l-pass').value;
+  const errEl=document.getElementById('l-err');
+  const okEl=document.getElementById('l-ok');
+  const btn=document.getElementById('l-btn');
+  errEl.textContent='';okEl.textContent='';
+  if(!email||!pass){errEl.textContent='请填写邮箱和密码';return;}
+  if(!DB){errEl.textContent='请先点下方「配置 Supabase」完成配置';return;}
+  btn.disabled=true;btn.textContent='请稍候…';
+  try{
+    let res;
+    if(authMode==='up'){
+      res=await DB.auth.signUp({email,password:pass});
+      if(res.error)throw res.error;
+      if(res.data?.user&&!res.data.session){
+        okEl.textContent='注册成功！请检查邮箱点击确认链接后登录';
+        btn.disabled=false;btn.textContent='注册';return;
+      }
+    }else{
+      res=await DB.auth.signInWithPassword({email,password:pass});
+      if(res.error)throw res.error;
+    }
+    if(res.data?.user)await onLogin(res.data.user);
+  }catch(e){
+    const map={'Invalid login credentials':'邮箱或密码错误','Email not confirmed':'请先点邮箱里的确认链接','User already registered':'该邮箱已注册，请直接登录'};
+    errEl.textContent=map[e.message]||e.message||'操作失败';
+  }
+  btn.disabled=false;btn.textContent=authMode==='in'?'登录':'注册';
+}
+
+async function onLogin(user){
+  UID=user.id;
+  document.getElementById('user-email').textContent='👤 '+user.email;
+  // load cloud data
+  try{
+    const {data,error}=await DB.from('fhr_data').select('data').eq('user_id',UID).single();
+    if(!error&&data?.data){
+      G=data.data;G.records.forEach(r=>r.files=normFiles(r.files));
+      persist();toast('✓ 已加载云端数据');
+    }else{
+      await save();
+    }
+  }catch(e){await save();}
+  // show app
+  document.getElementById('s-login').classList.remove('active');
+  document.getElementById('app').style.display='flex';
+  setSyncDot('ok');
+  renderSidebar();renderPage();
+}
+
+async function doLogout(){
+  if(!confirm('确认退出？'))return;
+  if(DB)await DB.auth.signOut();
+  UID=null;
+  document.getElementById('app').style.display='none';
+  document.getElementById('s-login').classList.add('active');
+  setSyncDot('');
+}
+
+async function tryAutoLogin(){
+  if(!initDB())return;
+  try{
+    const {data:{session}}=await DB.auth.getSession();
+    if(session?.user)await onLogin(session.user);
+  }catch(e){}
+}
+
+// ╔══════════════════════════════════════════════════════════╗
+// ║  HELPERS                                                 ║
+// ╚══════════════════════════════════════════════════════════╝
+const uid=()=>'id'+Date.now()+Math.random().toString(36).slice(2,5);
+const ac=i=>AVATAR_COLS[i%AVATAR_COLS.length];
+const gm=id=>G.members.find(m=>m.id===id)||{name:'?',rel:''};
+const gmi=id=>G.members.findIndex(m=>m.id===id);
+const fy=v=>'¥'+(+v||0).toLocaleString();
+const fileIcon=n=>{const e=n.split('.').pop().toLowerCase();return {jpg:'🖼',jpeg:'🖼',png:'🖼',gif:'🖼',webp:'🖼',pdf:'📕',doc:'📝',docx:'📝',xls:'📊',xlsx:'📊'}[e]||'📄';};
+const canPrev=n=>/\.(jpg|jpeg|png|gif|webp|pdf)$/i.test(n);
+
+function toast(msg){
+  const t=document.getElementById('toast');t.textContent=msg;t.classList.add('show');
+  clearTimeout(t._t);t._t=setTimeout(()=>t.classList.remove('show'),2200);
+}
+
+function filteredRecs(){
+  return G.records.filter(r=>{
+    if(S.member!=='all'&&r.mid!==S.member)return false;
+    if(S.typeF&&r.type!==S.typeF)return false;
+    if(S.search){const q=S.search.toLowerCase();if(!r.hospital.toLowerCase().includes(q)&&!r.purpose.toLowerCase().includes(q))return false;}
+    return true;
+  }).sort((a,b)=>b.date.localeCompare(a.date));
+}
+
+// ╔══════════════════════════════════════════════════════════╗
+// ║  RENDER SIDEBAR                                          ║
+// ╚══════════════════════════════════════════════════════════╝
+function renderSidebar(){
+  const ml=document.getElementById('member-list');
+  let h=`<button class="sb-btn${S.member==='all'?' active':''}" onclick="selMember('all')"><span style="font-size:16px;width:27px;text-align:center">👥</span>全部成员</button>`;
+  G.members.forEach((m,i)=>{
+    const[tc,bg]=ac(i);
+    h+=`<button class="sb-btn${S.member===m.id?' active':''}" onclick="selMember('${m.id}')">
+      <div class="sb-av" style="background:${bg};color:${tc}">${m.name[0]}</div>${m.name}<span class="sb-rel">${m.rel}</span>
+    </button>`;
+  });
+  ml.innerHTML=h;
+}
+
+function selMember(id){
+  S.member=id;S.expanded=null;
+  const m=id==='all'?null:gm(id);
+  document.getElementById('pg-title').textContent=id==='all'?'全部记录':m.name+'的记录';
+  document.getElementById('pg-sub').textContent=id==='all'?'家庭就诊历史':m.rel+'·就诊档案';
+  renderSidebar();renderPage();
+}
+
+function go(page){
+  S.page=page;
+  ['records','insurance','stats'].forEach(p=>{
+    document.getElementById('nav-'+p).className='sb-btn'+(p===page?' active':'');
+  });
+  const actEl=document.getElementById('topbar-actions');
+  actEl.innerHTML=page==='records'?`<button class="btn-teal" onclick="openModal()">＋ 添加记录</button>`:'';
+  renderPage();
+}
+
+function renderPage(){
+  const c=document.getElementById('content');
+  if(S.page==='records')renderRecords(c);
+  else if(S.page==='insurance')renderInsurance(c);
+  else renderStats(c);
+}
+
+// ╔══════════════════════════════════════════════════════════╗
+// ║  RECORDS PAGE                                            ║
+// ╚══════════════════════════════════════════════════════════╝
+function renderRecords(c){
+  const recs=filteredRecs();
+  const tot=recs.reduce((s,r)=>s+(+r.costTotal||0),0);
+  const self=recs.reduce((s,r)=>s+(+r.costSelf||0),0);
+  const reimb=tot-self;
+  const atts=recs.reduce((s,r)=>s+ATT_CATS.reduce((a,cat)=>a+(r.files[cat.key]||[]).filter(f=>f.path!=='uploading').length,0),0);
+  c.innerHTML=`
+  <div class="kpi-row">
+    <div class="kpi" style="border-top-color:var(--teal)"><div class="kpi-lbl">就诊次数</div><div class="kpi-val">${recs.length}</div><div class="kpi-hint">条记录</div></div>
+    <div class="kpi" style="border-top-color:var(--amber)"><div class="kpi-lbl">总费用</div><div class="kpi-val">${fy(tot)}</div><div class="kpi-hint">合计</div></div>
+    <div class="kpi" style="border-top-color:var(--blue)"><div class="kpi-lbl">保险报销</div><div class="kpi-val">${fy(reimb)}</div><div class="kpi-hint">医保+商保</div></div>
+    <div class="kpi" style="border-top-color:var(--coral)"><div class="kpi-lbl">个人自费</div><div class="kpi-val">${fy(self)}</div><div class="kpi-hint">实付</div></div>
+    <div class="kpi" style="border-top-color:var(--purple)"><div class="kpi-lbl">附件文件</div><div class="kpi-val">${atts}</div><div class="kpi-hint">份</div></div>
+  </div>
+  <div class="filter-bar">
+    <input id="srch" placeholder="搜索医院、就诊事由…" value="${S.search}" oninput="S.search=this.value;renderRecList()">
+    <select id="tf" onchange="S.typeF=this.value;renderRecList()">
+      <option value="">全部类型</option>${TYPE_LIST.map(t=>`<option value="${t}"${S.typeF===t?' selected':''}>${t}</option>`).join('')}
+    </select>
+  </div>
+  <div id="reclist"></div>`;
+  renderRecList();
+}
+
+function renderRecList(){
+  const recs=filteredRecs();
+  const el=document.getElementById('reclist');if(!el)return;
+  if(!recs.length){el.innerHTML=`<div class="empty"><div class="empty-icon">📂</div><div class="empty-title">暂无就诊记录</div><div class="empty-sub">点击右上角「添加记录」开始建立档案</div></div>`;return;}
+  el.innerHTML='<div class="rlist">'+recs.map(r=>renderCard(r)).join('')+'</div>';
+}
+
+function renderCard(r){
+  const[tc,tbg]=TYPE_COLS[r.type]||['#888','#eee'];
+  const m=gm(r.mid),mi=gmi(r.mid);
+  const[ac2,ab]=ac(mi);
+  const open=S.expanded===r.id;
+  const attFiles=ATT_CATS.filter(cat=>(r.files[cat.key]||[]).filter(f=>f.path!=='uploading').length>0);
+  const attPills=attFiles.map(cat=>`<span class="att-pill" style="background:${cat.bg};color:${cat.color}">${cat.icon}${r.files[cat.key].filter(f=>f.path!=='uploading').length}</span>`).join('');
+  const yp=r.costTotal?Math.round((r.costYibao||0)/r.costTotal*100):0;
+  const sp=r.costTotal?Math.round((r.costShangye||0)/r.costTotal*100):0;
+  const sfp=r.costTotal?Math.round((r.costSelf||0)/r.costTotal*100):100;
+  let detail='';
+  if(open){
+    detail=`<div class="rdetail">
+      <div class="det-sec">
+        <div class="det-sec-title">💰 费用与报销</div>
+        <div class="ins-boxes">
+          <div class="ins-box" style="background:var(--bg2)"><div class="ins-box-lbl">总费用</div><div class="ins-box-val">${fy(r.costTotal)}</div><div class="ins-box-pct">100%</div></div>
+          <div class="ins-box" style="background:var(--teal-l)"><div class="ins-box-lbl">🏥 医保报销</div><div class="ins-box-val" style="color:var(--teal)">${fy(r.costYibao)}</div><div class="ins-box-pct">${yp}%</div></div>
+          <div class="ins-box" style="background:var(--blue-l)"><div class="ins-box-lbl">🛡 商业险</div><div class="ins-box-val" style="color:var(--blue)">${fy(r.costShangye)}</div><div class="ins-box-pct">${sp}%</div></div>
+          <div class="ins-box" style="background:var(--coral-l)"><div class="ins-box-lbl">💳 个人自费</div><div class="ins-box-val" style="color:var(--coral)">${fy(r.costSelf)}</div><div class="ins-box-pct">${sfp}%</div></div>
+        </div>
+        <div class="cost-bar">
+          <div class="cost-seg" style="width:${yp}%;background:var(--teal);opacity:.75"></div>
+          <div class="cost-seg" style="width:${sp}%;background:var(--blue);opacity:.75"></div>
+          <div class="cost-seg" style="width:${sfp}%;background:var(--coral);opacity:.75"></div>
+        </div>
+      </div>
+      <div class="det-sec">
+        <div class="det-sec-title">📋 基本信息</div>
+        <div class="det-grid">
+          <div><div class="di-lbl">就诊成员</div><div class="di-val" style="display:flex;align-items:center;gap:5px"><span style="display:inline-flex;width:18px;height:18px;border-radius:50%;background:${ab};color:${ac2};font-size:10px;font-weight:700;align-items:center;justify-content:center">${m.name[0]}</span>${m.name}（${m.rel}）</div></div>
+          <div><div class="di-lbl">就诊日期</div><div class="di-val">${r.date}</div></div>
+          <div><div class="di-lbl">就诊类型</div><div class="di-val"><span style="background:${tbg};color:${tc};padding:2px 9px;border-radius:20px;font-size:12px;font-weight:700">${r.type}</span></div></div>
+          ${r.dept?`<div><div class="di-lbl">科室</div><div class="di-val">${r.dept}</div></div>`:''}
+        </div>
+      </div>
+      ${r.result?`<div class="det-sec"><div class="det-sec-title">🩺 诊断结果</div><div class="result-box">${r.result}</div></div>`:''}
+      <div class="det-sec">
+        <div class="det-sec-title">📎 附件资料</div>
+        <div class="att-cats">
+          ${ATT_CATS.map(cat=>{
+            const files=r.files[cat.key]||[];
+            return`<div class="att-cat">
+              <div class="att-cat-hd" style="background:${cat.bg};color:${cat.color}">${cat.icon} ${cat.name}</div>
+              <div class="att-cat-body">
+                ${files.map((f,fi)=>f.path==='uploading'
+                  ?`<div class="att-uploading">⏳ ${f.name}</div>`
+                  :`<div class="att-file">
+                      <span class="att-fn" title="${f.name}" onclick="prevFile('${r.id}','${cat.key}',${fi});event.stopPropagation()">${fileIcon(f.name)} ${f.name}</span>
+                      <div class="att-actions">
+                        <button class="att-act" title="预览" onclick="prevFile('${r.id}','${cat.key}',${fi});event.stopPropagation()">👁</button>
+                        <button class="att-act del" title="删除" onclick="delFile('${r.id}','${cat.key}',${fi});event.stopPropagation()">×</button>
+                      </div>
+                    </div>`).join('')}
+                ${!files.length?`<div class="att-empty">暂无</div>`:''}
+                <label class="att-upload-lbl">＋ 上传<input type="file" multiple style="display:none" onchange="uploadFile(event,'${r.id}','${cat.key}')"></label>
+              </div>
+            </div>`;
+          }).join('')}
+        </div>
+      </div>
+      <div style="display:flex;gap:8px;margin-top:4px">
+        <button class="btn-ghost" style="font-size:12px" onclick="editRec('${r.id}');event.stopPropagation()">✏️ 编辑</button>
+        <button class="btn-danger" onclick="delRec('${r.id}');event.stopPropagation()">🗑 删除</button>
+      </div>
+    </div>`;
+  }
+  return`<div class="rcard${open?' open':''}" onclick="toggleExp('${r.id}')">
+    <div class="rcard-top">
+      <span class="type-tag" style="background:${tbg};color:${tc}">${r.type}</span>
+      <div class="rcard-mid">
+        <div class="rcard-hosp">${r.hospital}</div>
+        <div class="rcard-sub">
+          <span>${r.purpose}</span>
+          ${S.member==='all'?`<span class="member-chip"><span style="display:inline-flex;width:15px;height:15px;border-radius:50%;background:${ab};color:${ac2};font-size:9px;font-weight:700;align-items:center;justify-content:center">${m.name[0]}</span>${m.name}</span>`:''}
+        </div>
+      </div>
+      <div class="rcard-right">
+        <div class="rcard-cost">${fy(r.costTotal)}</div>
+        ${(r.costSelf||0)<(r.costTotal||0)?`<div class="rcard-self">自费 ${fy(r.costSelf)}</div>`:''}
+        <div class="rcard-date">${r.date}</div>
+        ${attPills?`<div class="att-pills">${attPills}</div>`:''}
+      </div>
+    </div>
+    ${detail}
+  </div>`;
+}
+
+function toggleExp(id){
+  S.expanded=S.expanded===id?null:id;
+  renderRecList();
+}
+
+// ╔══════════════════════════════════════════════════════════╗
+// ║  FILE UPLOAD / PREVIEW / DELETE                          ║
+// ╚══════════════════════════════════════════════════════════╝
+function storagePath(rid,cat,name){return`${UID}/${rid}/${cat}/${name}`;}
+
+async function uploadFile(evt,rid,catKey){
+  evt.stopPropagation();
+  const r=G.records.find(x=>x.id===rid);if(!r)return;
+  const files=Array.from(evt.target.files);if(!files.length)return;
+  if(!DB||!UID){toast('⚠️ 请先登录才能上传文件');return;}
+  for(const file of files){
+    const ph={name:file.name,path:'uploading'};
+    r.files[catKey].push(ph);
+    renderRecList();
+    try{
+      const path=storagePath(rid,catKey,file.name);
+      const{error}=await DB.storage.from(BUCKET).upload(path,file,{upsert:true});
+      if(error)throw error;
+      const idx=r.files[catKey].findIndex(f=>f.name===file.name&&f.path==='uploading');
+      if(idx>=0)r.files[catKey][idx]={name:file.name,path};
+      save();renderRecList();toast('✓ 上传成功：'+file.name);
+    }catch(e){
+      r.files[catKey]=r.files[catKey].filter(f=>!(f.name===file.name&&f.path==='uploading'));
+      toast('上传失败：'+e.message);renderRecList();
+    }
+  }
+}
+
+async function prevFile(rid,catKey,idx){
+  const r=G.records.find(x=>x.id===rid);if(!r)return;
+  const f=r.files[catKey][idx];
+  if(!f||f.path==='uploading'){toast('文件上传中，请稍候');return;}
+  if(!DB){toast('请先登录');return;}
+  try{
+    const{data,error}=await DB.storage.from(BUCKET).createSignedUrl(f.path,3600);
+    if(error)throw error;
+    const url=data.signedUrl;
+    const ext=f.name.split('.').pop().toLowerCase();
+    const isImg=/^(jpg|jpeg|png|gif|webp|bmp)$/.test(ext);
+    const isPdf=ext==='pdf';
+    document.getElementById('prev-name').textContent=fileIcon(f.name)+' '+f.name;
+    document.getElementById('prev-dl').href=url;
+    document.getElementById('prev-dl').setAttribute('download',f.name);
+    const body=document.getElementById('prev-body');
+    body.innerHTML=isImg?`<img src="${url}" alt="${f.name}">`
+      :isPdf?`<iframe src="${url}"></iframe>`
+      :`<div class="preview-nopreview"><div style="font-size:40px;margin-bottom:12px">📄</div><div>${f.name}</div><div style="margin-top:12px"><a href="${url}" download="${f.name}" class="btn-teal" style="text-decoration:none">⬇ 下载文件</a></div></div>`;
+    document.getElementById('prev-wrap').classList.add('open');
+  }catch(e){toast('获取文件失败：'+e.message);}
+}
+
+async function delFile(rid,catKey,idx){
+  const r=G.records.find(x=>x.id===rid);if(!r)return;
+  const f=r.files[catKey][idx];
+  if(!confirm('确认删除「'+f.name+'」？'))return;
+  if(DB&&f.path&&f.path!=='uploading')await DB.storage.from(BUCKET).remove([f.path]).catch(()=>{});
+  r.files[catKey].splice(idx,1);
+  save();renderRecList();
+}
+
+function closePrev(){document.getElementById('prev-wrap').classList.remove('open');}
+
+// ╔══════════════════════════════════════════════════════════╗
+// ║  INSURANCE PAGE                                          ║
+// ╚══════════════════════════════════════════════════════════╝
+function renderInsurance(c){
+  const recs=S.member==='all'?G.records:G.records.filter(r=>r.mid===S.member);
+  const tot=recs.reduce((s,r)=>s+(+r.costTotal||0),0);
+  const yi=recs.reduce((s,r)=>s+(+r.costYibao||0),0);
+  const sh=recs.reduce((s,r)=>s+(+r.costShangye||0),0);
+  const sf=recs.reduce((s,r)=>s+(+r.costSelf||0),0);
+  const yp=tot?Math.round(yi/tot*100):0,spp=tot?Math.round(sh/tot*100):0,sfp=tot?Math.round(sf/tot*100):100;
+  const memIns={};
+  recs.forEach(r=>{
+    if(!memIns[r.mid])memIns[r.mid]={tot:0,yi:0,sh:0,sf:0};
+    memIns[r.mid].tot+=+r.costTotal||0;memIns[r.mid].yi+=+r.costYibao||0;
+    memIns[r.mid].sh+=+r.costShangye||0;memIns[r.mid].sf+=+r.costSelf||0;
+  });
+  const hasReim=recs.filter(r=>(+r.costYibao||0)+(+r.costShangye||0)>0).sort((a,b)=>b.date.localeCompare(a.date));
+  c.innerHTML=`
+  <div class="ins-summary">
+    <div class="ins-sum" style="border-top:3px solid var(--teal)"><div class="ins-sum-lbl">🏥 医保报销总计</div><div class="ins-sum-val" style="color:var(--teal)">${fy(yi)}</div><div class="ins-sum-pct">占总费用 ${yp}%</div></div>
+    <div class="ins-sum" style="border-top:3px solid var(--blue)"><div class="ins-sum-lbl">🛡 商业险理赔总计</div><div class="ins-sum-val" style="color:var(--blue)">${fy(sh)}</div><div class="ins-sum-pct">占总费用 ${spp}%</div></div>
+    <div class="ins-sum" style="border-top:3px solid var(--coral)"><div class="ins-sum-lbl">💳 个人自费总计</div><div class="ins-sum-val" style="color:var(--coral)">${fy(sf)}</div><div class="ins-sum-pct">占总费用 ${sfp}%</div></div>
+  </div>
+  <div class="chart-card" style="margin-bottom:14px">
+    <div class="chart-title">费用构成总览</div>
+    <div style="display:flex;gap:14px;font-size:12px;margin-bottom:8px;flex-wrap:wrap">
+      <span style="display:flex;align-items:center;gap:5px"><span style="width:10px;height:10px;border-radius:2px;background:var(--teal);opacity:.75;display:inline-block"></span>医保 ${fy(yi)}</span>
+      <span style="display:flex;align-items:center;gap:5px"><span style="width:10px;height:10px;border-radius:2px;background:var(--blue);opacity:.75;display:inline-block"></span>商保 ${fy(sh)}</span>
+      <span style="display:flex;align-items:center;gap:5px"><span style="width:10px;height:10px;border-radius:2px;background:var(--coral);opacity:.75;display:inline-block"></span>自费 ${fy(sf)}</span>
+      <span style="margin-left:auto;color:var(--ink2)">总计 ${fy(tot)}</span>
+    </div>
+    <div class="cost-bar" style="height:14px">
+      <div class="cost-seg" style="width:${yp}%;background:var(--teal);opacity:.75"></div>
+      <div class="cost-seg" style="width:${spp}%;background:var(--blue);opacity:.75"></div>
+      <div class="cost-seg" style="width:${sfp}%;background:var(--coral);opacity:.75"></div>
+    </div>
+  </div>
+  ${S.member==='all'&&Object.keys(memIns).length?`
+  <div class="chart-card" style="margin-bottom:14px">
+    <div class="chart-title">各成员报销情况</div>
+    <table class="tbl">
+      <thead><tr><th>成员</th><th>总费用</th><th style="color:var(--teal)">医保报销</th><th style="color:var(--blue)">商保理赔</th><th style="color:var(--coral)">自费</th><th>报销率</th></tr></thead>
+      <tbody>${Object.entries(memIns).map(([mid,v])=>{
+        const m=gm(mid);const rate=v.tot?Math.round((v.yi+v.sh)/v.tot*100):0;
+        return`<tr><td style="font-weight:600">${m.name}（${m.rel}）</td><td>${fy(v.tot)}</td><td style="color:var(--teal)">${fy(v.yi)}</td><td style="color:var(--blue)">${fy(v.sh)}</td><td style="color:var(--coral)">${fy(v.sf)}</td><td style="font-weight:600;color:${rate>=50?'var(--teal)':'var(--ink2)'}">${rate}%</td></tr>`;
+      }).join('')}</tbody>
+    </table>
+  </div>`:''}
+  <div class="chart-card">
+    <div class="chart-title">报销记录明细（${hasReim.length}条）</div>
+    ${hasReim.length?hasReim.map(r=>{
+      const[tc,tbg]=TYPE_COLS[r.type]||['#888','#eee'];const m=gm(r.mid);
+      return`<div style="display:flex;align-items:center;gap:10px;padding:9px 12px;border:1px solid var(--border);border-radius:var(--radius);margin-bottom:6px;background:var(--white)">
+        <span class="type-tag" style="background:${tbg};color:${tc};font-size:11px">${r.type}</span>
+        <div style="flex:1;min-width:0"><div style="font-weight:600;font-size:13px">${r.hospital}</div><div style="font-size:11px;color:var(--ink3)">${r.date} · ${m.name}</div></div>
+        <div style="text-align:right">
+          ${r.costYibao?`<div style="font-size:12px;color:var(--teal)">医保 ${fy(r.costYibao)}</div>`:''}
+          ${r.costShangye?`<div style="font-size:12px;color:var(--blue)">商保 ${fy(r.costShangye)}</div>`:''}
+          <div style="font-size:11px;color:var(--ink3)">自费 ${fy(r.costSelf)}</div>
+        </div>
+      </div>`;
+    }).join(''):`<div class="empty" style="padding:24px"><div class="empty-icon" style="font-size:28px">🛡</div><div class="empty-sub">添加记录时填写医保/商保金额即可</div></div>`}
+  </div>`;
+}
+
+// ╔══════════════════════════════════════════════════════════╗
+// ║  STATS PAGE                                              ║
+// ╚══════════════════════════════════════════════════════════╝
+function renderStats(c){
+  const all=S.member==='all'?G.records:G.records.filter(r=>r.mid===S.member);
+  const tot=all.reduce((s,r)=>s+(+r.costTotal||0),0);
+  const self=all.reduce((s,r)=>s+(+r.costSelf||0),0);
+  const hMap={},tMap={},mMap={},moMap={};
+  all.forEach(r=>{
+    hMap[r.hospital]=(hMap[r.hospital]||0)+1;
+    tMap[r.type]=(tMap[r.type]||0)+1;
+    if(!mMap[r.mid])mMap[r.mid]={tot:0,cnt:0};mMap[r.mid].tot+=+r.costTotal||0;mMap[r.mid].cnt++;
+    const mo=r.date.slice(0,7);if(!moMap[mo])moMap[mo]={tot:0,self:0};moMap[mo].tot+=+r.costTotal||0;moMap[mo].self+=+r.costSelf||0;
+  });
+  const sH=Object.entries(hMap).sort((a,b)=>b[1]-a[1]).slice(0,6),maxH=sH[0]?.[1]||1;
+  const sT=Object.entries(tMap).sort((a,b)=>b[1]-a[1]),maxT=sT[0]?.[1]||1;
+  const sMo=Object.entries(moMap).sort((a,b)=>a[0].localeCompare(b[0])).slice(-6),maxMo=Math.max(...sMo.map(([,v])=>v.tot),1);
+  c.innerHTML=`
+  <div class="kpi-row">
+    <div class="kpi" style="border-top-color:var(--teal)"><div class="kpi-lbl">总就诊次数</div><div class="kpi-val">${all.length}</div></div>
+    <div class="kpi" style="border-top-color:var(--amber)"><div class="kpi-lbl">总费用</div><div class="kpi-val">${fy(tot)}</div></div>
+    <div class="kpi" style="border-top-color:var(--blue)"><div class="kpi-lbl">保险报销</div><div class="kpi-val">${fy(tot-self)}</div></div>
+    <div class="kpi" style="border-top-color:var(--coral)"><div class="kpi-lbl">个人自费</div><div class="kpi-val">${fy(self)}</div></div>
+    <div class="kpi" style="border-top-color:var(--purple)"><div class="kpi-lbl">就医机构</div><div class="kpi-val">${Object.keys(hMap).length}</div></div>
+  </div>
+  ${sMo.length?`<div class="chart-card"><div class="chart-title">近6个月费用趋势</div>${sMo.map(([mo,v])=>{
+    const p=Math.round(v.tot/maxMo*100);const sp=Math.round(v.self/maxMo*100);
+    return`<div class="bar-row"><div class="bar-lbl">${mo.slice(5)}月</div><div class="bar-track" style="position:relative"><div class="bar-fill" style="position:absolute;width:${p}%;background:var(--bg3);top:0;left:0;height:100%"></div><div class="bar-fill" style="width:${sp}%;background:var(--coral);opacity:.7"></div></div><div class="bar-val">${fy(v.tot)}</div></div>`;
+  }).join('')}</div>`:''}
+  <div class="stats-2col">
+    <div class="chart-card"><div class="chart-title">常去医院</div>${sH.map(([h,n])=>`<div class="bar-row"><div class="bar-lbl">${h.length>9?h.slice(0,9)+'…':h}</div><div class="bar-track"><div class="bar-fill" style="width:${Math.round(n/maxH*100)}%;background:var(--blue)"></div></div><div class="bar-val">${n}次</div></div>`).join('')}</div>
+    <div class="chart-card"><div class="chart-title">就诊类型分布</div>${sT.map(([t,n])=>{const[tc]=TYPE_COLS[t]||['#888'];return`<div class="bar-row"><div class="bar-lbl">${t}</div><div class="bar-track"><div class="bar-fill" style="width:${Math.round(n/maxT*100)}%;background:${tc}"></div></div><div class="bar-val">${n}次</div></div>`;}).join('')}</div>
+  </div>
+  ${S.member==='all'&&Object.keys(mMap).length?`<div class="chart-card"><div class="chart-title">成员费用与次数</div>${Object.entries(mMap).sort((a,b)=>b[1].tot-a[1].tot).map(([mid,v])=>{const m=gm(mid);const mi=gmi(mid);const[tc]=ac(mi);const mx=Math.max(...Object.values(mMap).map(x=>x.tot));return`<div class="bar-row"><div class="bar-lbl">${m.name}</div><div class="bar-track"><div class="bar-fill" style="width:${Math.round(v.tot/mx*100)}%;background:${tc}"></div></div><div class="bar-val">${fy(v.tot)}·${v.cnt}次</div></div>`;}).join('')}</div>`:''}`;
+}
+
+// ╔══════════════════════════════════════════════════════════╗
+// ║  RECORD MODAL                                            ║
+// ╚══════════════════════════════════════════════════════════╝
+function initPending(){pendingFiles={};ATT_CATS.forEach(c=>pendingFiles[c.key]=[]);}
+function openModal(){editId=null;initPending();buildModal();}
+function editRec(id){editId=id;initPending();buildModal();}
+
+function buildModal(){
+  const r=editId?G.records.find(x=>x.id===editId):null;
+  document.getElementById('modal-title').textContent=r?'编辑就诊记录':'新增就诊记录';
+  const defMid=S.member!=='all'?S.member:(G.members[0]?.id||'');
+  const mopts=G.members.map(m=>`<option value="${m.id}"${(r?.mid||defMid)===m.id?' selected':''}>${m.name}（${m.rel}）</option>`).join('');
+  const topts=TYPE_LIST.map(t=>`<option value="${t}"${(r?.type||'门诊')===t?' selected':''}>${t}</option>`).join('');
+  document.getElementById('modal-body').innerHTML=`
+    <div><div class="msect-title">基本信息</div>
+      <div class="mform-row" style="margin-top:12px">
+        <div class="mfg"><label>就诊成员</label><select id="f-mid">${mopts}</select></div>
+        <div class="mfg"><label>就诊日期</label><input type="date" id="f-date" value="${r?.date||new Date().toISOString().slice(0,10)}"></div>
+      </div>
+      <div class="mfg" style="margin-top:10px">
+        <label>医院名称 * <span style="font-size:10px;color:var(--ink3);font-weight:400">（输入关键字自动搜索）</span></label>
+        <div class="hosp-wrap" id="hosp-wrap">
+          <input type="text" id="f-hosp" placeholder="输入医院关键字，如：协和、儿童医院…" value="${r?.hospital||''}" autocomplete="off"
+            oninput="onHospInput(this.value)" onkeydown="onHospKd(event)" onfocus="if(this.value.length>=1)doHospSearch(this.value)" onblur="setTimeout(closeHospDrop,180)">
+          <div class="hosp-drop" id="hosp-drop"></div>
+        </div>
+        <div class="city-chips" id="city-chips">${buildCityChips()}</div>
+      </div>
+      <div class="mform-row" style="margin-top:10px">
+        <div class="mfg"><label>就诊事由 *</label><input type="text" id="f-purp" placeholder="如：年度体检" value="${r?.purpose||''}"></div>
+        <div class="mfg"><label>就诊类型</label><select id="f-type">${topts}</select></div>
+      </div>
+      <div class="mfg" style="margin-top:10px"><label>科室</label><input type="text" id="f-dept" placeholder="如：内科、急诊科" value="${r?.dept||''}"></div>
+    </div>
+    <div><div class="msect-title">费用与报销</div>
+      <div class="mform-row3" style="margin-top:12px">
+        <div class="mfg"><label>总费用（元）*</label><input type="number" id="f-tot" min="0" placeholder="0" value="${r?.costTotal||''}" oninput="autoSelf()"><div class="mhint">含医保商保</div></div>
+        <div class="mfg"><label>🏥 医保报销（元）</label><input type="number" id="f-yi" min="0" placeholder="0" value="${r?.costYibao||0}" oninput="autoSelf()"></div>
+        <div class="mfg"><label>🛡 商业险（元）</label><input type="number" id="f-sh" min="0" placeholder="0" value="${r?.costShangye||0}" oninput="autoSelf()"></div>
+      </div>
+      <div class="mfg" style="margin-top:10px"><label>💳 个人自费（元）</label><input type="number" id="f-sf" min="0" placeholder="自动计算" value="${r?.costSelf??''}"><div class="mhint">= 总费用 − 医保 − 商保</div></div>
+    </div>
+    <div><div class="msect-title">诊断结果 / 医嘱</div>
+      <div class="mfg" style="margin-top:12px"><label>检查结果、诊断、用药情况</label><textarea id="f-result" placeholder="记录主要指标、诊断结论、医嘱、用药…">${r?.result||''}</textarea></div>
+    </div>
+    <div><div class="msect-title">附件资料（按类别上传）</div>
+      <div class="matt-grid" style="margin-top:12px" id="matt-wrap">${buildMattGrid(r)}</div>
+    </div>`;
+  document.getElementById('rec-modal').classList.add('open');
+}
+
+function buildMattGrid(r){
+  return ATT_CATS.map(cat=>{
+    const existing=r?.files?.[cat.key]||[];
+    const pending=pendingFiles[cat.key]||[];
+    const all=[...existing,...pending];
+    return`<div class="matt-zone">
+      <div class="matt-hd" style="background:${cat.bg};color:${cat.color}">${cat.icon} ${cat.name}<div style="font-size:9px;opacity:.7;margin-top:1px">${cat.desc}</div></div>
+      <div class="matt-body">
+        ${all.map((f,i)=>{
+          const name=f.name||f;const isPend=i>=existing.length;
+          return`<div class="matt-file"><span class="matt-fn" title="${name}">${fileIcon(name)} ${name.length>13?name.slice(0,13)+'…':name}</span>${isPend?'<span class="matt-status">待上传</span>':''}<button class="matt-del" onclick="rmPending('${cat.key}',${i},${existing.length})">×</button></div>`;
+        }).join('')}
+        <label class="matt-upload">＋ 上传<input type="file" multiple style="display:none" onchange="addPending(event,'${cat.key}')"></label>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function addPending(evt,catKey){
+  if(!pendingFiles[catKey])pendingFiles[catKey]=[];
+  Array.from(evt.target.files).forEach(f=>pendingFiles[catKey].push({fileObj:f,name:f.name}));
+  const r=editId?G.records.find(x=>x.id===editId):null;
+  document.getElementById('matt-wrap').innerHTML=buildMattGrid(r);
+}
+
+function rmPending(catKey,idx,existLen){
+  const r=editId?G.records.find(x=>x.id===editId):null;
+  if(idx<existLen){if(r&&r.files[catKey])r.files[catKey].splice(idx,1);}
+  else{if(pendingFiles[catKey])pendingFiles[catKey].splice(idx-existLen,1);}
+  document.getElementById('matt-wrap').innerHTML=buildMattGrid(r);
+}
+
+function autoSelf(){
+  const t=parseFloat(document.getElementById('f-tot')?.value)||0;
+  const y=parseFloat(document.getElementById('f-yi')?.value)||0;
+  const s=parseFloat(document.getElementById('f-sh')?.value)||0;
+  const el=document.getElementById('f-sf');if(el)el.value=Math.max(0,t-y-s);
+}
+
+async function saveRec(){
+  const mid=document.getElementById('f-mid').value;
+  const date=document.getElementById('f-date').value;
+  const hospital=document.getElementById('f-hosp').value.trim();
+  const purpose=document.getElementById('f-purp').value.trim();
+  const type=document.getElementById('f-type').value;
+  const dept=document.getElementById('f-dept').value.trim();
+  const costTotal=parseFloat(document.getElementById('f-tot').value)||0;
+  const costYibao=parseFloat(document.getElementById('f-yi').value)||0;
+  const costShangye=parseFloat(document.getElementById('f-sh').value)||0;
+  const costSelf=parseFloat(document.getElementById('f-sf').value)||Math.max(0,costTotal-costYibao-costShangye);
+  const result=document.getElementById('f-result').value.trim();
+  if(!hospital||!purpose||!date){toast('请填写医院名称、就诊事由和日期');return;}
+  let rid=editId;
+  if(editId){
+    const r=G.records.find(x=>x.id===editId);
+    if(r)Object.assign(r,{mid,date,hospital,dept,purpose,type,costTotal,costYibao,costShangye,costSelf,result});
+  }else{
+    rid=uid();
+    const files={};ATT_CATS.forEach(c=>files[c.key]=[]);
+    G.records.push({id:rid,mid,date,hospital,dept,purpose,type,costTotal,costYibao,costShangye,costSelf,result,files});
+  }
+  save();closeModal();renderPage();
+  // background upload
+  const hasF=ATT_CATS.some(c=>(pendingFiles[c.key]||[]).length>0);
+  if(hasF){
+    if(!DB||!UID){toast('⚠️ 未登录，附件未上传');return;}
+    const rec=G.records.find(x=>x.id===rid);
+    if(!rec)return;
+    toast('正在上传附件…');
+    for(const cat of ATT_CATS){
+      for(const pf of pendingFiles[cat.key]||[]){
+        if(!pf.fileObj)continue;
+        try{
+          const path=storagePath(rid,cat.key,pf.name);
+          const{error}=await DB.storage.from(BUCKET).upload(path,pf.fileObj,{upsert:true});
+          if(error)throw error;
+          if(!rec.files[cat.key])rec.files[cat.key]=[];
+          rec.files[cat.key].push({name:pf.name,path});
+        }catch(e){toast('附件「'+pf.name+'」上传失败');}
+      }
+    }
+    save();renderPage();toast('✓ 附件上传完成');
+  }
+}
+
+function closeModal(){document.getElementById('rec-modal').classList.remove('open');initPending();editId=null;}
+function delRec(id){if(!confirm('确认删除？'))return;G.records=G.records.filter(r=>r.id!==id);S.expanded=null;save();renderPage();}
+
+// ╔══════════════════════════════════════════════════════════╗
+// ║  HOSPITAL AUTOCOMPLETE                                   ║
+// ╚══════════════════════════════════════════════════════════╝
+function buildCityChips(){
+  return CITIES.map(c=>`<span class="city-chip${hospCity===c?' sel':''}" onclick="setCity('${c}')">${c}</span>`).join('');
+}
+function setCity(c){
+  hospCity=hospCity===c?'':c;
+  const el=document.getElementById('city-chips');if(el)el.innerHTML=buildCityChips();
+  const inp=document.getElementById('f-hosp');if(inp&&inp.value.length>=1)doHospSearch(inp.value);
+}
+function onHospInput(v){
+  clearTimeout(hospTimer);
+  if(v.length<1){closeHospDrop();return;}
+  hospTimer=setTimeout(()=>doHospSearch(v),300);
+}
+function doHospSearch(kw){
+  const drop=document.getElementById('hosp-drop');if(!drop)return;
+  drop.innerHTML='<div class="hosp-loading">搜索中…</div>';drop.classList.add('show');hospIdx=-1;
+  const p=new URLSearchParams({key:AMAP_KEY,keywords:kw,types:'090100|090101|090200|090300',datatype:'poi',output:'json'});
+  if(hospCity&&hospCity!=='其他'){p.set('city',hospCity);p.set('citylimit','true');}
+  fetch('https://restapi.amap.com/v3/assistant/inputtips?'+p)
+    .then(r=>r.json()).then(d=>{
+      if(d.status!=='1'||!d.tips?.length){drop.innerHTML='<div class="hosp-empty">未找到，请直接输入</div>';return;}
+      const tips=d.tips.filter(t=>t.name&&t.id).slice(0,10);
+      if(!tips.length){drop.innerHTML='<div class="hosp-empty">未找到，请直接输入</div>';return;}
+      const kw2=document.getElementById('f-hosp')?.value||'';
+      drop.innerHTML=tips.map((t,i)=>{
+        const addr=typeof t.address==='string'?t.address:(t.district||'');
+        const hl=t.name.replace(new RegExp(kw2.replace(/[.*+?^${}()|[\]\\]/g,'\\$&'),'gi'),s=>`<em>${s}</em>`);
+        return`<div class="hosp-item" data-idx="${i}" data-name="${t.name}" onmousedown="selHosp('${t.name.replace(/'/g,"\\'")}')">
+          <div style="flex:1"><div class="hosp-name">${hl}</div>${addr?`<div class="hosp-addr">${addr}</div>`:''}</div>
+          ${t.district?`<div class="hosp-dist">${t.district}</div>`:''}
+        </div>`;
+      }).join('');
+    }).catch(()=>{drop.innerHTML='<div class="hosp-empty">搜索失败，请直接输入</div>';});
+}
+function selHosp(name){
+  const inp=document.getElementById('f-hosp');if(inp)inp.value=name;
+  closeHospDrop();document.getElementById('f-purp')?.focus();
+}
+function closeHospDrop(){const d=document.getElementById('hosp-drop');if(d)d.classList.remove('show');hospIdx=-1;}
+function onHospKd(e){
+  const drop=document.getElementById('hosp-drop');if(!drop?.classList.contains('show'))return;
+  const items=drop.querySelectorAll('.hosp-item');if(!items.length)return;
+  if(e.key==='ArrowDown'){e.preventDefault();hospIdx=Math.min(hospIdx+1,items.length-1);items.forEach((el,i)=>el.classList.toggle('focused',i===hospIdx));items[hospIdx].scrollIntoView({block:'nearest'});}
+  else if(e.key==='ArrowUp'){e.preventDefault();hospIdx=Math.max(hospIdx-1,0);items.forEach((el,i)=>el.classList.toggle('focused',i===hospIdx));items[hospIdx].scrollIntoView({block:'nearest'});}
+  else if(e.key==='Enter'&&hospIdx>=0){e.preventDefault();selHosp(items[hospIdx].dataset.name);}
+  else if(e.key==='Escape')closeHospDrop();
+}
+
+// ╔══════════════════════════════════════════════════════════╗
+// ║  MEMBER / EXPORT                                         ║
+// ╚══════════════════════════════════════════════════════════╝
+function addMember(){
+  const name=prompt('成员姓名：');if(!name?.trim())return;
+  const rel=prompt('关系（父亲/母亲/孩子等）：')||'成员';
+  G.members.push({id:uid(),name:name.trim(),rel:rel.trim()});
+  save();renderSidebar();
+}
+function doExport(){
+  const b=new Blob([JSON.stringify(G,null,2)],{type:'application/json'});
+  const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download='健康档案备份_'+new Date().toISOString().slice(0,10)+'.json';a.click();
+  toast('备份文件已下载');
+}
+function doImport(e){
+  const f=e.target.files[0];if(!f)return;
+  const rd=new FileReader();
+  rd.onload=ev=>{try{G=JSON.parse(ev.target.result);G.records.forEach(r=>r.files=normFiles(r.files));save();renderSidebar();renderPage();toast('✓ 数据已恢复');}catch{toast('文件格式错误');}};
+  rd.readAsText(f);e.target.value='';
+}
+
+
+// ╔══════════════════════════════════════════════════════════╗
+// ║  MOBILE NAV                                              ║
+// ╚══════════════════════════════════════════════════════════╝
+function setMnav(page){
+  ['records','insurance','stats','add'].forEach(p=>{
+    const el=document.getElementById('mnav-'+p);
+    if(el) el.classList.toggle('active', p===page);
+  });
+}
+
+// Show scan FAB only on records page
+const _origGo = go;
+function go(page){
+  _origGo(page);
+  const fab=document.getElementById('scan-fab');
+  if(fab) fab.style.display=(page==='records')?'flex':'none';
+  setMnav(page);
+}
+
+// ╔══════════════════════════════════════════════════════════╗
+// ║  OCR / SCAN                                              ║
+// ╚══════════════════════════════════════════════════════════╝
+function openOCR(){
+  document.getElementById('ocr-sheet').classList.add('open');
+  resetOCR();
+}
+function closeOCR(){
+  document.getElementById('ocr-sheet').classList.remove('open');
+}
+function resetOCR(){
+  const prev=document.getElementById('ocr-preview');
+  prev.style.display='none'; prev.src='';
+  document.getElementById('ocr-progress').style.display='none';
+  document.getElementById('ocr-result').style.display='none';
+  document.getElementById('ocr-prog-fill').style.width='0';
+  document.getElementById('ocr-input').value='';
+}
+
+function handleOCRDrop(e){
+  e.preventDefault();
+  document.getElementById('ocr-drop').classList.remove('drag');
+  const file=e.dataTransfer.files[0];
+  if(file&&file.type.startsWith('image/')) runOCR(file);
+}
+function startOCR(e){
+  const file=e.target.files[0];
+  if(file) runOCR(file);
+}
+
+async function runOCR(file){
+  // show preview
+  const prev=document.getElementById('ocr-preview');
+  prev.src=URL.createObjectURL(file);
+  prev.style.display='block';
+
+  // show progress
+  const prog=document.getElementById('ocr-progress');
+  const fill=document.getElementById('ocr-prog-fill');
+  const ptxt=document.getElementById('ocr-prog-txt');
+  prog.style.display='block';
+  document.getElementById('ocr-result').style.display='none';
+  fill.style.width='5%'; ptxt.textContent='正在加载识别引擎…';
+
+  try{
+    if(!window.Tesseract){throw new Error('OCR引擎未加载，请检查网络');}
+
+    const result = await window.Tesseract.recognize(file, 'chi_sim+eng', {
+      logger: m => {
+        if(m.status==='recognizing text'){
+          fill.style.width = Math.round(m.progress*80+15)+'%';
+          ptxt.textContent='识别中 '+Math.round(m.progress*100)+'%…';
+        } else if(m.status==='loading language traineddata'){
+          fill.style.width='10%'; ptxt.textContent='加载中文语言包…';
+        }
+      }
+    });
+
+    fill.style.width='100%'; ptxt.textContent='识别完成 ✓';
+    const text = result.data.text;
+    parseOCRText(text);
+    setTimeout(()=>{prog.style.display='none';},800);
+
+  }catch(err){
+    ptxt.textContent='识别失败：'+err.message;
+    fill.style.background='var(--coral)';
+    setTimeout(()=>{prog.style.display='none';fill.style.background='var(--teal)';},3000);
+  }
+}
+
+function parseOCRText(text){
+  document.getElementById('ocr-raw').textContent=text;
+
+  // ── Hospital name: look for 医院/诊所/卫生院 keywords ──
+  let hospital='';
+  const hospMatch = text.match(/[一-龥a-zA-Z0-9（()）·•·]+(?:医院|诊所|卫生院|卫生中心|门诊部|医疗中心|医学中心)/);
+  if(hospMatch) hospital=hospMatch[0].replace(/^[^一-龥a-zA-Z0-9]+/,'').trim();
+
+  // ── Amount: look for ¥/￥/合计/实收/金额 followed by number ──
+  let amount='';
+  const amtPatterns=[
+    /(?:合计|实收|金额|应收|总金额|费用合计|结算金额)[：:￥¥\s]*([0-9]+\.?[0-9]*)/,
+    /[￥¥]\s*([0-9]+\.?[0-9]*)/,
+    /([0-9]+\.[0-9]{2})\s*元/,
+  ];
+  for(const p of amtPatterns){const m=text.match(p);if(m&&parseFloat(m[1])>0){amount=m[1];break;}}
+
+  // ── Date: YYYY-MM-DD or YYYY年MM月DD日 or YYYY/MM/DD ──
+  let date='';
+  const datePatterns=[
+    /(\d{4})[年\-\/](\d{1,2})[月\-\/](\d{1,2})/,
+    /(\d{4})(\d{2})(\d{2})/,
+  ];
+  for(const p of datePatterns){
+    const m=text.match(p);
+    if(m){
+      const y=m[1],mo=m[2].padStart(2,'0'),d=m[3].padStart(2,'0');
+      if(parseInt(y)>=2000&&parseInt(y)<=2030&&parseInt(mo)>=1&&parseInt(mo)<=12){
+        date=`${y}-${mo}-${d}`;break;
+      }
+    }
+  }
+  if(!date) date=new Date().toISOString().slice(0,10);
+
+  // ── Dept: look for common dept keywords ──
+  let dept='';
+  const deptMatch=text.match(/(?:科|门诊|急诊|病区)[：:\s]*?([一-龥]+(?:科|部|室|门诊|急诊))/);
+  if(!deptMatch){
+    const depts=['内科','外科','儿科','妇科','急诊','骨科','眼科','耳鼻喉','口腔','皮肤科','神经科','心血管','肿瘤','放射','检验'];
+    for(const d of depts){if(text.includes(d)){dept=d;break;}}
+  }else{dept=deptMatch[1];}
+
+  // populate fields
+  document.getElementById('ocr-hospital').value=hospital;
+  document.getElementById('ocr-date').value=date;
+  document.getElementById('ocr-amount').value=amount;
+  document.getElementById('ocr-dept').value=dept;
+  document.getElementById('ocr-result').style.display='block';
+}
+
+function applyOCR(){
+  const hospital=document.getElementById('ocr-hospital').value.trim();
+  const date=document.getElementById('ocr-date').value;
+  const amount=document.getElementById('ocr-amount').value;
+  const dept=document.getElementById('ocr-dept').value.trim();
+
+  closeOCR();
+  // open add modal and pre-fill
+  openModal();
+  setTimeout(()=>{
+    if(hospital){
+      const el=document.getElementById('f-hosp');
+      if(el) el.value=hospital;
+    }
+    if(date){
+      const el=document.getElementById('f-date');
+      if(el) el.value=date;
+    }
+    if(amount){
+      const el=document.getElementById('f-tot');
+      if(el){el.value=amount; autoSelf();}
+    }
+    if(dept){
+      const el=document.getElementById('f-dept');
+      if(el) el.value=dept;
+    }
+    toast('✓ 识别内容已填入，请确认后保存');
+  }, 300);
+}
+
+// ╔══════════════════════════════════════════════════════════╗
+// ║  INIT                                                    ║
+// ╚══════════════════════════════════════════════════════════╝
+window.addEventListener('load',()=>{
+  // topbar-actions initial
+  document.getElementById('topbar-actions').innerHTML=`<button class="btn-teal" onclick="openModal()">＋ 添加记录</button>`;
+  // show scan FAB on mobile for default records page
+  const fab=document.getElementById('scan-fab');if(fab)fab.style.display='flex';
+  tryAutoLogin();
+});
+</script>
+</body>
+</html>
