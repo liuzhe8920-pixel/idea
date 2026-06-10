@@ -958,7 +958,24 @@ function toggleExp(id){
 // ╔══════════════════════════════════════════════════════════╗
 // ║  FILE UPLOAD / PREVIEW / DELETE                          ║
 // ╚══════════════════════════════════════════════════════════╝
-function storagePath(rid,cat,name){return`${UID}/${rid}/${cat}/${name}`;}
+function sanitizeFilename(name){
+  // keep extension, replace non-ASCII and special chars with underscore
+  const ext = name.includes('.') ? '.'+name.split('.').pop() : '';
+  const base = name.slice(0, name.lastIndexOf('.')||name.length);
+  const safe = base
+    .replace(/[^\w一-龥\-\.]/g,'_')  // keep word chars + Chinese
+    .replace(/[一-龥]+/g, s => {
+      // encode Chinese characters to avoid Supabase key issues
+      return Array.from(s).map(c=>c.charCodeAt(0).toString(16)).join('');
+    })
+    .replace(/_+/g,'_')
+    .slice(0,80);
+  return (safe||'file')+'_'+Date.now()+ext;
+}
+function storagePath(rid,cat,name){
+  const safe=sanitizeFilename(name);
+  return`${UID}/${rid}/${cat}/${safe}`;
+}
 
 async function uploadFile(evt,rid,catKey){
   evt.stopPropagation();
@@ -971,14 +988,15 @@ async function uploadFile(evt,rid,catKey){
     renderRecList();
     try{
       const path=storagePath(rid,catKey,file.name);
-      const{error}=await DB.storage.from(BUCKET).upload(path,file,{upsert:true});
+      const{error}=await DB.storage.from(BUCKET).upload(path,file,{upsert:true,contentType:file.type||'application/octet-stream'});
       if(error)throw error;
       const idx=r.files[catKey].findIndex(f=>f.name===file.name&&f.path==='uploading');
-      if(idx>=0)r.files[catKey][idx]={name:file.name,path};
+      if(idx>=0)r.files[catKey][idx]={name:file.name,path};  // name=display, path=storage
       save();renderRecList();toast('✓ 上传成功：'+file.name);
     }catch(e){
       r.files[catKey]=r.files[catKey].filter(f=>!(f.name===file.name&&f.path==='uploading'));
-      toast('上传失败：'+e.message);renderRecList();
+      const msg = e.message||JSON.stringify(e);
+      toast('上传失败：'+(msg.includes('Invalid key')?'文件名含特殊字符，已自动处理，请重试':msg));renderRecList();
     }
   }
 }
@@ -1243,10 +1261,10 @@ async function saveRec(){
         if(!pf.fileObj)continue;
         try{
           const path=storagePath(rid,cat.key,pf.name);
-          const{error}=await DB.storage.from(BUCKET).upload(path,pf.fileObj,{upsert:true});
+          const{error}=await DB.storage.from(BUCKET).upload(path,pf.fileObj,{upsert:true,contentType:pf.fileObj.type||'application/octet-stream'});
           if(error)throw error;
           if(!rec.files[cat.key])rec.files[cat.key]=[];
-          rec.files[cat.key].push({name:pf.name,path});
+          rec.files[cat.key].push({name:pf.name,path});  // name=display, path=storage
         }catch(e){toast('附件「'+pf.name+'」上传失败');}
       }
     }
