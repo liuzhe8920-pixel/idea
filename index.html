@@ -819,6 +819,10 @@ function go(page){
   const actEl=document.getElementById('topbar-actions');
   actEl.innerHTML=page==='records'?`<button class="btn-teal" onclick="openModal()">＋ 添加记录</button>`:'';
   renderPage();
+  // mobile nav + scan FAB
+  const fab=document.getElementById('scan-fab');
+  if(fab) fab.style.display=(page==='records')?'flex':'none';
+  setMnav(page);
 }
 
 function renderPage(){
@@ -1358,14 +1362,7 @@ function setMnav(page){
   });
 }
 
-// Show scan FAB only on records page
-const _origGo = go;
-function go(page){
-  _origGo(page);
-  const fab=document.getElementById('scan-fab');
-  if(fab) fab.style.display=(page==='records')?'flex':'none';
-  setMnav(page);
-}
+// mobile nav handled in go()
 
 // ╔══════════════════════════════════════════════════════════╗
 // ║  OCR / SCAN                                              ║
